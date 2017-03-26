@@ -42,6 +42,8 @@ PCType pop_pc(){
 
 void execute(Byte* byteStream, PCType* length);
 
+#ifndef INTEGRATE_VM
+
 int main(int argc, char** argv){
 	
 	if (argc == 1){
@@ -123,6 +125,8 @@ int main(int argc, char** argv){
 	
 	return 0;
 }
+
+#endif
 
 void execute(Byte* byteStream, PCType* length){
 	PCType pc = 0;

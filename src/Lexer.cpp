@@ -502,31 +502,6 @@ Lexer::CharType Lexer::get_char_type(char c){
 	}
 }
 
-/*
-inline void Lexer::print_syntax_error(const std::string& message) const{ 
-	std::cout << "Syntax error! Line " << lineNo << " col " << colNo << std::endl;
-	
-	std::string markerLine = "";
-	
-	for (unsigned int i = 0; i <= colNo; i++){
-		markerLine += ' ';
-	}
-	
-	markerLine += '^';
-	
-	std::string strippedLine = "";
-	
-	for (unsigned int i = 0; i < currentLine.length(); i++){
-		if (currentLine[i] != '\t'){
-			strippedLine += currentLine[i];
-		}
-	}
-	std::cout << '\t' << strippedLine << std::endl << '\t' << markerLine << std::endl;
-	
-	std::cout << message << std::endl;
-}
-*/
-
 bool Lexer::is_delimiter(char c){
 	for (unsigned int i = 0; i < nDELIMITERS; i++){
 		if (c == delimiterChars[i])
