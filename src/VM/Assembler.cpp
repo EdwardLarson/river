@@ -46,6 +46,7 @@ int main(int argc, char** argv){
 		Assembler a(inStream, outStream);
 		a.assemble();
 		
+		std::cout << "Wrote " << (outStream.tellp() * sizeof(Byte)) << " bytes to " << argv[2] << std::endl;
 		outStream.close();
 		inStream.close();
 	}
@@ -53,61 +54,84 @@ int main(int argc, char** argv){
 
 #endif
 
-Assembler::Assembler(std::ifstream& instrm, std::ofstream& outstrm): inStream(instrm), outStream(outstrm){
+Assembler::Assembler(std::istream& instrm, std::ostream& outstrm): inStream(instrm), outStream(outstrm){
+	nextFree = 0;
+	nextFreePersistent = 0;
 	
+	// add mapping to persistent register 0 for "$zero"
+	std::cout << "\tzero reg: " << (int) get_register("zero") << std::endl;
 }
 
 // Assemble the given input into bytecode. Outputs to and closes given output file.
 void Assembler::assemble(){
 	
 	error = AERROR_NONE;
+	unsigned int currLine = 1;
 	
 	std::string line;
-	while (inStream >> line){
+	while (std::getline(inStream, line)){
 		assemble_instruction(line);
+		
+		switch(error){
+		case AERROR_NONE:
+			std::cout << "line assemby success" << std::endl;
+			break;
+		case AERROR_WRONGARGS:
+			std::cout << "error [" << currLine << "]: instruction has wrong args" << std::endl;
+			break;
+		case AERROR_NOPCODE:
+			std::cout << "error [" << currLine << "]: opcode not found" << std::endl;
+			break;
+		case AERROR_REGLIMIT:
+			std::cout << "error [" << currLine << "]: not enough registers to allocate" << std::endl;
+			break;
+		case AERROR_BADRET:
+			std::cout << "error [" << currLine << "]: bad return type" << std::endl;
+			break;
+		case AERROR_ARGTYPES:
+			std::cout << "error [" << currLine << "]: incorrect argument types" << std::endl;
+			break;
+		}
+		
+		error = AERROR_NONE;
+		
+		++currLine;
 	}
-	
-	switch(error){
-	case AERROR_NONE:
-		std::cout << "assemby success" << std::endl;
-		break;
-	case AERROR_WRONGARGS:
-		std::cout << "error: instruction has wrong args" << std::endl;
-		break;
-	case AERROR_NOPCODE:
-		std::cout << "error: opcode not found" << std::endl;
-		break;
-	case AERROR_REGLIMIT:
-		std::cout << "error: not enough registers to allocate" << std::endl;
-		break;
-	case AERROR_BADRET:
-		std::cout << "error: bad return type" << std::endl;
-		break;
-	case AERROR_ARGTYPES:
-		std::cout << "error: incorrect argument types" << std::endl;
-		break;
-	}
-	
-	outStream.close();
 }
 
 void Assembler::assemble_instruction(const std::string& instruction){
 	unsigned int index = 0;
 	
+	std::cout << std::hex;
+	
+	std::cout << "instruction: " << instruction << std::endl; ///DEBUG 
+	
 	char subfunction = ' ';
 	Byte opcode = read_opcode(instruction, index, subfunction);
 	
+	std::cout << "opcode: " << (int) opcode << std::endl; ///DEBUG 
+	
 	std::vector<Argument> args;
 	read_args(instruction, index, args);
+	
+	std::cout << "checkpoint: args read" << std::endl; ///DEBUG 
+	
 	Byte funct = get_funct(opcode, args, subfunction);
+	
+	std::cout << "funct: " << (int) funct << std::endl; ///DEBUG 
 	
 	Byte returnReg = 0;
 	Byte returnBit = read_returns(instruction, index, returnReg);
 	
+	std::cout << "return bit: " << (int) returnBit << std::endl; ///DEBUG 
+	
 	// compile full opcode and output
 	// opcode format: <rooo-ooff>
-	Byte fullOpcode = returnBit & opcode & funct;
-	outStream << fullOpcode;
+	Byte fullOpcode = returnBit | opcode | funct;
+	
+	std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
+	
+	outStream << std::hex << fullOpcode;
 	
 	// compile arguments into bytes and output
 	for (unsigned int i = 0; i < args.size(); i++){
@@ -116,30 +140,55 @@ void Assembler::assemble_instruction(const std::string& instruction){
 	
 	// add return argument to tail of instruction
 	if (returnBit){
-		outStream << returnReg;
+		outStream << std::hex << returnReg;
 	}
 }
 
-Byte Assembler::get_register(const std::string& identifier){
-	// return 0 if no more registers to allocate
-	if (nextFree == NUM_REGISTERS - NUM_PERSISTENT_REGISTERS){
-		std::cerr << "error: no more registers to allocate" << std::endl;
-		return 0;
+Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
+	
+	if (isPersistent){
+		if (nextFreePersistent == NUM_REGISTERS - 1){
+			//std::cerr << "error: no more registers to allocate" << std::endl;
+			error = AERROR_REGLIMIT;
+			return 0;
+		}
+	}else{
+		// return 0 if no more registers to allocate
+		if (nextFree == NUM_REGISTERS - NUM_PERSISTENT_REGISTERS){
+			//std::cerr << "error: no more registers to allocate" << std::endl;
+			error = AERROR_REGLIMIT;
+			return 0;
+		}
 	}
 	
-	
 	std::pair<std::string, Byte> entry(identifier, nextFree);
-	std::pair<RegisterMap::iterator, bool> search = mapping.insert(entry);
+	std::pair<RegisterMap::iterator, bool> search;
+	
+	if (isPersistent){
+		search = persistent.insert(entry);
+	}else{
+		search = mapping.insert(entry);
+	}
+	
 	if (search.second){
 		// entry inserted
 		
 		// increment nextFree and return the allocated register
-		++nextFree;
-		return nextFree - 1;
+		
+		std::cout << "\tallocated new register " << identifier << std::endl;
+		
+		if (isPersistent){
+			++nextFreePersistent;
+			return nextFree - 1;
+		}else{
+			++nextFree;
+			return nextFree - 1;
+		}
 	}else{
 		// entry not inserted
 		
 		// return the previously allocated register
+		std::cout << "\tidentified old register " << identifier << std::endl;
 		return search.first->second;
 	}
 }
@@ -159,7 +208,7 @@ void Assembler::pop_frame(){
 	freeStack.pop();
 }
 
-Byte Assembler::read_opcode(const std::string& instruction, unsigned int index, char& subfunction){
+Byte Assembler::read_opcode(const std::string& instruction, unsigned int& index, char& subfunction){
 	std::string opcodeRaw = "";
 	
 	for ( ; instruction[index] != ' '; ++index){
@@ -177,8 +226,9 @@ Byte Assembler::read_opcode(const std::string& instruction, unsigned int index, 
 	return opcode;
 }
 
-void Assembler::read_args(const std::string& instruction, unsigned int index, std::vector<Argument>& args){
+void Assembler::read_args(const std::string& instruction, unsigned int& index, std::vector<Argument>& args){
 	while (index < instruction.length() && instruction[index] != '>'){
+		
 		if (instruction[index] != ' '){
 			args.push_back(read_argument(instruction, index));
 		}
@@ -190,18 +240,22 @@ void Assembler::read_args(const std::string& instruction, unsigned int index, st
 Assembler::Argument Assembler::read_argument(const std::string& instruction, unsigned int& index){
 	Argument argument;
 	
-	switch(instruction[0]){
+	switch(instruction[index]){
 	case '$':
 		argument.type = REGISTER;
+		++index;
 		break;
 	case '#':
 		argument.type = REGISTER_P;
+		++index;
 		break;
 	case '@':
 		argument.type = ADDRESS;
+		++index;
 		break;
 	case ':':
 		argument.type = LABEL;
+		++index;
 		break;
 	default:
 		argument.type = VALUE;
@@ -211,23 +265,27 @@ Assembler::Argument Assembler::read_argument(const std::string& instruction, uns
 		argument.arg += instruction[index];
 		++index;
 	}
-	--index; // pull index away from the space after the identifier
+	//--index; // pull index away from the space after the identifier
+	
+	std::cout << "argument " << argument.arg << " of type " << argument.type << std::endl; /// DEBUG
 	
 	return argument;
 }
 
-Byte Assembler::read_returns(const std::string& instruction, unsigned int index, Byte& returnReg){
+Byte Assembler::read_returns(const std::string& instruction, unsigned int& index, Byte& returnReg){
 	// iterate index to the beginning of the argument
-	for (; index < instruction.length() && instruction[index] == ' '; ++index){
+	for (; index < instruction.length() && (instruction[index] == ' ' || instruction[index] == '>'); ++index){
 		// return on finding a comment
+		
 		if (instruction[index] == ';'){
 			return 0x00;
 		}
 	}
 	
 	// check for a no-argument case
-	if (index == instruction.size()){
+	if (index >= instruction.length()){
 		return 0x00;
+	}else{
 	}
 	
 	Argument returnArg = read_argument(instruction, index);
@@ -282,6 +340,8 @@ Data_Object Assembler::read_literal(const std::string& literal){
 		tmpRat += (RationalType) tmpInt;
 		
 		object.data.d = tmpRat;
+	}else{
+		object.data.n = tmpInt;
 	}
 	
 	return object;
@@ -289,7 +349,28 @@ Data_Object Assembler::read_literal(const std::string& literal){
 
 void Assembler::assemble_argument(const Argument& arg){
 	if (arg.type == VALUE){
+		Data_Object_Cast_Union castUnion;
+		castUnion.data = read_literal(arg.arg);
 		
+		std::cout << "created Data_Object {type=" << castUnion.data.type << ", data=" << castUnion.data.data.n << "} for literal " << arg.arg << std::endl; ///DEBUG
+		
+		for (unsigned int i = 0; i < DATA_OBJECT_SIZE; i++){
+			outStream << castUnion.bytes[i];
+		}
+		
+	}else if (arg.type == REGISTER){
+		Byte reg = get_register(arg.arg);
+		
+		if (error != AERROR_REGLIMIT){
+			std::cout << "\tsuccessfully mapped " << arg.arg << " to register " << (int) reg << std::endl; /// DEBUG
+			outStream << reg;
+		}
+	}else if(arg.type == REGISTER_P){
+		Byte reg = get_register(arg.arg, true);
+		if (error != AERROR_REGLIMIT){
+			std::cout << "\tsuccessfully mapped " << arg.arg << " to persistent register " << (int) reg << std::endl; /// DEBUG
+			outStream << reg;
+		}
 	}
 }
 
@@ -403,8 +484,10 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 	case HALT:
 	case RETURN:
 	
-		if (args.size() != 0)
+		if (args.size() != 0){
+			std::cout << "\tA" << std::endl;
 			error = AERROR_WRONGARGS;
+		}
 		
 		return 0x00;
 		break;
@@ -414,8 +497,10 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 	case MOVE:
 	case NOT:
 	case INPUT:
-		if (args.size() != 1)
+		if (args.size() != 1){
 			error = AERROR_WRONGARGS;
+			std::cout << "\tB" << std::endl;
+		}
 		
 		return 0x00;
 		break;
@@ -444,6 +529,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 				&& (args[1].type == REGISTER || args[1].type == REGISTER_P)){ // VG
 			return 0x02;
 		}else{
+			std::cout << "\tB" << std::endl;
 			error = AERROR_WRONGARGS;
 			return 0x00;
 		}
@@ -458,6 +544,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 				return 0x03;
 			else{
 				error = AERROR_WRONGARGS;
+				std::cout << "\tD" << std::endl;
 				return 0x00;
 			}
 		}else{
@@ -466,6 +553,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 			else if (args.size() == 3)
 				return 0x01;
 			else{
+				std::cout << "\tE" << std::endl;
 				error = AERROR_WRONGARGS;
 				return 0x00;
 			}
@@ -473,8 +561,10 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		break;
 	
 	case BRANCH:
-		if (args.size() != 2)
+		if (args.size() != 2){
+			std::cout << "\tF" << std::endl;
 			error = AERROR_WRONGARGS;
+		}
 		
 		if (subfunction == 'T'){
 			return 0x00;
@@ -487,8 +577,10 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		return 0x00;
 		break;
 	case JUMP:
-		if (args.size() != 1)
+		if (args.size() != 1){
+			std::cout << "\tG" << std::endl;
 			error = AERROR_WRONGARGS;
+		}
 		
 		if (subfunction == 'L'){
 			return 0x01;
@@ -496,8 +588,10 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 			return 0x00;
 		}
 	case LOAD:
-		if (args.size() != 2)
+		if (args.size() != 1){
+			std::cout << "\tH" << std::endl;
 			error = AERROR_WRONGARGS;
+		}
 		
 		return 0x00;
 		break;
@@ -511,8 +605,10 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		if (subfunction == 'D'){
 			return 0x02;
 		}else{
-			if (args.size() != 1)
+			if (args.size() != 1){
+				std::cout << "\tI" << std::endl;
 				error = AERROR_WRONGARGS;
+			}
 			
 			if (args[0].type == REGISTER || args[0].type == REGISTER_P)
 				return 0x00;

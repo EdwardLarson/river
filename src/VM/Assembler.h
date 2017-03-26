@@ -26,9 +26,14 @@ private: typedef struct {
 	ArgType type;
 	std::string arg;
 } Argument;
+
+private: typedef union {
+	Data_Object data;
+	Byte bytes[DATA_OBJECT_SIZE];
+} Data_Object_Cast_Union;
 	
 public:
-	Assembler(std::ifstream& instrm, std::ofstream& outstrm);
+	Assembler(std::istream& instrm, std::ostream& outstrm);
 	
 	void assemble();
 	void assemble_instruction(const std::string& instruction);
@@ -36,24 +41,25 @@ private:
 	typedef enum {AERROR_NONE, AERROR_WRONGARGS, AERROR_ARGTYPES, AERROR_NOPCODE, AERROR_REGLIMIT, AERROR_BADRET} AssemblerError;
 	AssemblerError error;
 
-	std::ifstream& inStream;
-	std::ofstream& outStream;
+	std::istream& inStream;
+	std::ostream& outStream;
 	
 	RegisterMap mapping;
-	RegisterMap persisent;
+	RegisterMap persistent;
 	std::stack<RegisterMap> mappingStack;
 	
 	Byte nextFree;
+	Byte nextFreePersistent;
 	std::stack<Byte> freeStack;
 	
-	Byte get_register(const std::string& identifier);
+	Byte get_register(const std::string& identifier, bool persistent=false);
 	void push_frame();
 	void pop_frame();
 	
-	Byte read_opcode(const std::string& instruction, unsigned int index, char& subfunction);
-	void read_args(const std::string& instruction, unsigned int index, std::vector<Argument>& args);
+	Byte read_opcode(const std::string& instruction, unsigned int& index, char& subfunction);
+	void read_args(const std::string& instruction, unsigned int& index, std::vector<Argument>& args);
 	Argument read_argument(const std::string& instruction, unsigned int& index);
-	Byte read_returns(const std::string& instruction, unsigned int index, Byte& returnReg);
+	Byte read_returns(const std::string& instruction, unsigned int& index, Byte& returnReg);
 	Data_Object read_literal(const std::string& literal);
 	void assemble_argument(const Argument& arg);
 	

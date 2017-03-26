@@ -46,7 +46,7 @@ void execute(Byte* byteStream, PCType* length);
 
 int main(int argc, char** argv){
 	
-	if (argc == 1){
+	if (argc < 2){
 		printf("size of Byte:%ld\n", sizeof(Byte));
 		printf("size of Data_Type:%ld\n", sizeof(Data_Type));
 		printf("size of Data_Object:%ld\n", sizeof(Data_Object));
@@ -56,10 +56,6 @@ int main(int argc, char** argv){
 		printf("size of char*:%ld\n", sizeof(char*));
 		printf("size of unsigned int:%ld\n", sizeof(unsigned int));
 		
-		return 0;
-	}
-	
-	if (argc == 2){
 		PCType len = 19;
 		
 		Byte buffer[19] = {
@@ -121,6 +117,8 @@ int main(int argc, char** argv){
 	fread(buffer, filelen, 1, fileptr); // Read in the entire file
 	fclose(fileptr); // Close the file
 	
+	printf("Loaded a bytecode file of size %ld\n", filelen);
+	
 	execute(buffer, &filelen);
 	
 	return 0;
@@ -152,7 +150,7 @@ void execute(Byte* byteStream, PCType* length){
 	
 	while(running && (pc < *length)){
 		
-		printf("pc = %ld\n", pc); ///DEBUG
+		printf("\tpc = %ld\n", pc); ///DEBUG
 		
 		pcNext = pc;
 		instruction = byteStream[pc];
@@ -165,9 +163,9 @@ void execute(Byte* byteStream, PCType* length){
 		returnBit = (instruction & 0x80);
 		
 		/// DEBUG
-		printf("opcode: %d\n", opcode);
-		printf("funct: %d\n", funct);
-		printf("returnBit: %d\n", returnBit);
+		printf("\topcode: %d\n", opcode);
+		printf("\tfunct: %d\n", funct);
+		printf("\treturnBit: %d\n", returnBit);
 		
 		switch (opcode){
 //ABS
@@ -314,6 +312,8 @@ void execute(Byte* byteStream, PCType* length){
 			r = fetch_data(&byteStream[pc + 1]);
 			
 			pcNext = pc + 1 + DATA_OBJECT_SIZE;
+			
+			printf("\tpcNext: %ld\n", pcNext); ///DEBUG
 			break;
 //LSH
 		case LSH:
@@ -504,7 +504,7 @@ void execute(Byte* byteStream, PCType* length){
 				continue;
 			}
 			
-			printf("actual type: %d\n", a->type);
+			printf("\tactual type: %d\n", a->type);
 			switch(a->type){
 			case INTEGER:
 				printf("INTEGER: %ld", a->data.n);

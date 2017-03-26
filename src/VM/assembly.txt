@@ -1,4 +1,4 @@
-LOAD 5 > $1
-ADD $1 3 > $2
-PRINT $1
-PRINT $2
+LOAD 5 > $a
+ADD $a 3 > $b
+PRINT $a
+PRINT $b
