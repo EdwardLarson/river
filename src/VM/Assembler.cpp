@@ -1,58 +1,5 @@
-#include <iostream>
-#include <fstream>
-#include <map>
-#include <stack>
-
 #include "VM.h"
 #include "Assembler.h"
-
-#define LONGEST_INSTRUCTION_LENGTH 9
-
-/* SAMPLE ASSEMBLY
-sum digits 1-10 and print the results
-
-0:	SETDO $a
-1:	MOVE $zero 			;-> $a
-2:	LOAD 1 > $b
-	:LOOP
-3:	ADD $a, $b			;-> $a
-4:	ADD 1 > $b
-5:	LT $b, 11 > $c
-6:	BRANCH $c :LOOP
-7:	PRINT $a
-*/
-
-/*
-	'$' : register
-	'#' : persistent register
-	'@' : address
-*/
-
-#ifndef INTEGRATE_ASSEMBLER
-
-int main(int argc, char** argv){
-	if (argc < 3){
-		return 1;
-	}
-	
-	std::ifstream inStream(argv[1]);
-	std::ofstream outStream(argv[2], std::ios::binary);
-			
-	if (!inStream.is_open()){
-		std::cerr << "Unable to open file " << argv[1] << " for reading!" << std::endl;
-	}else if (!outStream.is_open()){
-		std::cerr << "Unable to open file " << argv[2] << " for writing!" << std::endl;
-	}else{
-		Assembler a(inStream, outStream);
-		a.assemble();
-		
-		std::cout << "Wrote " << (outStream.tellp() * sizeof(Byte)) << " bytes to " << argv[2] << std::endl;
-		outStream.close();
-		inStream.close();
-	}
-}
-
-#endif
 
 Assembler::Assembler(std::istream& instrm, std::ostream& outstrm): inStream(instrm), outStream(outstrm){
 	nextFree = 0;
@@ -62,14 +9,16 @@ Assembler::Assembler(std::istream& instrm, std::ostream& outstrm): inStream(inst
 	std::cout << "\tzero reg: " << (int) get_register("zero") << std::endl;
 }
 
-// Assemble the given input into bytecode. Outputs to and closes given output file.
-void Assembler::assemble(){
+// Assemble the given input into bytecode. Outputs to the given output stream.
+// Returns true on assembly success, false on failure/error
+bool Assembler::assemble(){
 	
 	error = AERROR_NONE;
 	unsigned int currLine = 1;
 	
+	
 	std::string line;
-	while (std::getline(inStream, line)){
+	while (std::getline(inStream, line)){ // crashes with a segfault
 		assemble_instruction(line);
 		
 		switch(error){
@@ -78,25 +27,27 @@ void Assembler::assemble(){
 			break;
 		case AERROR_WRONGARGS:
 			std::cout << "error [" << currLine << "]: instruction has wrong args" << std::endl;
-			break;
+			return false;
 		case AERROR_NOPCODE:
 			std::cout << "error [" << currLine << "]: opcode not found" << std::endl;
-			break;
+			return false;
 		case AERROR_REGLIMIT:
 			std::cout << "error [" << currLine << "]: not enough registers to allocate" << std::endl;
-			break;
+			return false;
 		case AERROR_BADRET:
 			std::cout << "error [" << currLine << "]: bad return type" << std::endl;
-			break;
+			return false;
 		case AERROR_ARGTYPES:
 			std::cout << "error [" << currLine << "]: incorrect argument types" << std::endl;
-			break;
+			return false;
 		}
 		
 		error = AERROR_NONE;
 		
 		++currLine;
 	}
+	
+	std::cout << "file assembly successful" << std::endl;
 }
 
 void Assembler::assemble_instruction(const std::string& instruction){

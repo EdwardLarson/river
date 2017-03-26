@@ -22,7 +22,10 @@ typedef double RationalType;
 
 typedef unsigned long PCType;
 
-/* OPCODES */
+/*
+OPCODES
+Opcodes for the atomic operations this virtual machine supports
+*/
 typedef enum _OPCODE{
 	ABS,
 	ADD,
@@ -58,7 +61,14 @@ typedef enum _OPCODE{
 	XOR
 } OPCODE;
 
-/* Data_Type */
+/*
+Data_Type
+Different atomic types of data. By default: INTEGERs are
+64-bit signed longs; RATIONALs are 64-bit double precision
+floats; NIL is a generic null-value type and have no data 
+representation; BOOLs are single bytes; STRINGs are c
+strings; POINTERs are void pointers.
+*/
 typedef enum { // 4 bytes maybe, according to C++ standard but not C
 	INTEGER,
 	RATIONAL,
@@ -69,7 +79,15 @@ typedef enum { // 4 bytes maybe, according to C++ standard but not C
 	//,FUNCTION
 } Data_Type;
 
-/* Data */
+/*
+Data 
+Representation for atomic data types:
+RATIONAL is represented by d
+INTEGER is represented by n
+STRING is represented by s
+BOOL is represented by b
+POINTER is represented by p
+*/
 typedef union {
 	RationalType d;
 	IntegerType n;
@@ -79,7 +97,11 @@ typedef union {
 	// how to represent function type?
 } Data;
 
-/* Data_Object */
+/* Data_Object 
+An atomic data representation which has a type (Data_Type)
+representing what kind of data is holds and a Data union 
+which holds its representation
+*/
 typedef struct {
 	Data data; // 8 bytes
 	Data_Type type; // 4 bytes
@@ -87,12 +109,14 @@ typedef struct {
 	Byte extra[4];
 } Data_Object;
 
-char* get_object_cstring(Data_Object* stringObject){
-	return (stringObject->data.s) + STRING_LENGTH_BYTES;
-}
-
+/* Register_File
+Holds the registers used by a VM as a 2D array, where
+each register has an associated depth (maximum determined 
+by FRAME_STACK_SIZE) representing the current position in
+the runtime register stack. Also contains 
+*/
 typedef struct {
-	Data_Object registers[NUM_REGISTERS][FRAME_STACK_SIZE];
+	Data_Object registers[NUM_REGISTERS][FRAME_STACK_SIZE]; // depth in persistent registers is wasted, but could be reused maybe as temp?
 	Byte defaultOutput;
 	Byte depth;
 	
@@ -100,60 +124,34 @@ typedef struct {
 	unsigned int pcTop;
 } Register_File;
 
-/* DESIGNED FOR A COMPRESSED, MEMORY-SPACE OPTIMIZED SYSTEM
+//==========================================================
+// VM FUNCTIONS
+//==========================================================
 
-struct RegisterNode{
-	unsigned long registers[REGISTER_NODE_SIZE];
-	unsigned int first; // index of register[0]
-	
-	RegisterNode* nxt;
-	RegisterNode* prv;
-}
+void execute(Byte* byteStream, PCType* length);
 
-struct Registers{
-	RegisterNode* head;
-	
-	RegisterNode* currentNode; // the node containing the index stored in 'currentOffset'
-	unsigned int currentOffset;
-	unsigned int lastIndexInCurrent;
-}
+// Bytestream manipulation
+inline Data_Object*	fetch_data(Byte* rawBytes);
+Data_Object 		read_bytes(Byte* rawBytes);
+Byte 				read_bool_direct(Byte* rawBegin);
+IntegerType 		read_integer_direct(Byte* rawBegin);
+RationalType 		read_double_direct(Byte* rawBegin);
+PCType 				read_address_literal(Byte* rawBytes);
 
-unsigned long access_register(unsigned char reg, Registers* registers){
-	unsigned int index = (unsigned int) reg + registers->currentOffset;
-	
-	if (index > registers->lastIndexInCurrent){
-		// find register in next registerNode
-		return registers->currentNode->nxt->registers[index - registers->currentNode->nxt->first];
-	}else {
-		return registers->currentNode->registers[index - registers->currentNode->first];
-	}
-}
+// Data_Object manipulation
+Data_Object create_object_INTEGER(IntegerType n);
+Data_Object create_object_RATIONAL(RationalType d);
+Data_Object create_object_BOOL(Byte b);
+inline void clear_data(Data_Object* object);
+char* get_object_cstring(Data_Object* stringObject);
 
-void push_frame(unsigned char& highestRegister, Registers* registers){
-	// find the global index of the highestRegister accessed so far
-	unsigned int highestIndex = (unsigned int) highestRegister + registers->currentOffset;
-	
-	// check the highest register accessed
-	if (highestIndex < registers->lastIndexInCurrent){
-		// start new frame in the same array
-	}else{
-		// create a new frame
-		newRegisterNode = new RegisterNode;
-		newRegisterNode->prv = registers->currentNode;
-		newRegisterNode->nxt = 0x00; //NULL
-		newRegisterNode->first = registers->lastIndexInCurrent + 1;
-		
-		// add frame to register file
-		registers->currentOffset = highestIndex + 1;
-		registers->lastIndexInCurrent += 256;
-		registers->currentNode = newRegisterNode;
-		
-	}
-}
+// Register file functions
+void initialize_register_file(Register_File* rFile);
+Data_Object* access_register(Byte reg, Register_File* rf);
+void write_default_output(Data_Object* object, Register_File* rf);
+void push_pc(PCType* pc_entry, Register_File* rf);
+PCType pop_pc(Register_File* rf);
 
-void pop_frame(Register* registers){
-	
-}
-*/
+
 
 #endif

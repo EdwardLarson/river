@@ -1,129 +1,11 @@
 #include "VM.h"
 
-#define INTEGRATE_ASSEMBLER
-
-Register_File registerFile;
-
-inline Data_Object* fetch_data(Byte* rawBytes);
-Data_Object read_bytes(Byte* rawBytes);
-Byte read_bool_direct(Byte* rawBegin);
-IntegerType read_integer_direct(Byte* rawBegin);
-RationalType read_double_direct(Byte* rawBegin);
-PCType read_address_literal(Byte* rawBytes);
-
-void initialize_register_file(Register_File* rFile);
-
-Data_Object create_object_INTEGER(IntegerType n);
-Data_Object create_object_RATIONAL(RationalType d);
-Data_Object create_object_BOOL(Byte b);
-inline void clear_data(Data_Object* object);
-
-Data_Object* access_register(Byte reg){
-	unsigned char depth = 0;
-	// get depth if this is a non-persistent register
-	if (reg < (NUM_REGISTERS - NUM_PERSISTENT_REGISTERS)) depth = registerFile.depth;
-	
-	return &(registerFile.registers[reg][depth] );
-}
-
-void write_default_output(Data_Object* object){
-	*access_register(registerFile.defaultOutput) = *object;
-}
-
-void push_pc(PCType* pc_entry){
-	++registerFile.pcTop; //TO-DO: bounds checking
-	registerFile.pcStack[registerFile.pcTop] = *pc_entry;
-}
-
-PCType pop_pc(){
-	--registerFile.pcTop; //TO-DO: bounds checking
-	return registerFile.pcStack[registerFile.pcTop + 1];
-}
-
-void execute(Byte* byteStream, PCType* length);
-
-#ifndef INTEGRATE_VM
-
-int main(int argc, char** argv){
-	
-	if (argc < 2){
-		printf("size of Byte:%ld\n", sizeof(Byte));
-		printf("size of Data_Type:%ld\n", sizeof(Data_Type));
-		printf("size of Data_Object:%ld\n", sizeof(Data_Object));
-		printf("size of RationalType:%ld\n", sizeof(RationalType));
-		printf("size of IntegerType:%ld\n", sizeof(IntegerType));
-		printf("size of Data:%ld\n", sizeof(Data));
-		printf("size of char*:%ld\n", sizeof(char*));
-		printf("size of unsigned int:%ld\n", sizeof(unsigned int));
-		
-		PCType len = 19;
-		
-		Byte buffer[19] = {
-			0x69, // print: opcode = 11010, funct = 01, r = 0: 0110-1001 = 0x69
-			// begin object
-			0x64,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			0x00,
-			//end object
-			0x6A, // print: opcode = 11010, funct = 10, r = 0: 0110-1010 = 0x6A
-			0x20 // halt: opcode = 01000, funct = 00, r = 0: 0010-0000 = 0x10
-		};
-		
-		PCType len2 = 42;
-		
-		Byte buffer2[42] = {
-		//	LOAD	Data_Object.data = 5							Data_Object.type = 0	Data_Object spare		registerR = 1
-			0xAC,	0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00,	0x01, //18 bytes
-		//	ADD		registerA = 1	Data_Object.data = 3							Data_Object.type = 0	Data_Object spare		registerR = 2
-			0x85,	0x01,			0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00,	0x02, //19 bytes
-		//	PRINT	registerA = 1
-			0x68,	0x01, // 2 bytes
-		//	PRINT	registerA = 2
-			0x68,	0x02, // 2 bytes
-		//	HALT
-			0x20
-		};
-		
-		execute(buffer2, &len2);
-		return 0;
-	}
-	
-	char* filename = argv[1];
-	
-	
-	FILE *fileptr;
-	Byte *buffer;
-	PCType filelen;
-
-	fileptr = fopen(filename, "rb");  // Open the file in binary mode
-	fseek(fileptr, 0, SEEK_END);          // Jump to the end of the file
-	filelen = (PCType) ftell(fileptr);             // Get the current byte offset in the file
-	rewind(fileptr);                      // Jump back to the beginning of the file
-
-	buffer = (Byte *)malloc((filelen+1)*sizeof(Byte)); // Enough memory for file + \0
-	fread(buffer, filelen, 1, fileptr); // Read in the entire file
-	fclose(fileptr); // Close the file
-	
-	printf("Loaded a bytecode file of size %ld\n", filelen);
-	
-	execute(buffer, &filelen);
-	
-	return 0;
-}
-
+#ifdef __cplusplus
+#define void_ptr_add(ptr, offset) \
+	(void*) (((unsigned long) ptr) + offset)
+#else
+#define void_ptr_add(ptr, offset) \
+	ptr + offset
 #endif
 
 void execute(Byte* byteStream, PCType* length){
@@ -146,6 +28,7 @@ void execute(Byte* byteStream, PCType* length){
 	Data_Object* r;
 	Data_Object tmpReturn; // r will point to here if an instruction returns a totally new object
 	
+	Register_File registerFile;
 	initialize_register_file(&registerFile);
 	
 	while(running && (pc < *length)){
@@ -158,7 +41,7 @@ void execute(Byte* byteStream, PCType* length){
 		//  r: return bit; returns to defaultOutput register if 0, to a return argument if 1
 		//	o: bits of opcode; 
 		//  f: bits of funct; select sub-functions of the operation, such as different argument types
-		opcode = (instruction & 0x7C) >> 2;
+		opcode = (OPCODE) ((instruction & 0x7C) >> 2);
 		funct = (instruction & 0x03);
 		returnBit = (instruction & 0x80);
 		
@@ -170,7 +53,7 @@ void execute(Byte* byteStream, PCType* length){
 		switch (opcode){
 //ABS
 		case ABS:
-			a = access_register(byteStream[pc + 1]);
+			a = access_register(byteStream[pc + 1], &registerFile);
 			switch(a->type){
 			case INTEGER:
 				if (a->data.n < 0){
@@ -197,12 +80,12 @@ void execute(Byte* byteStream, PCType* length){
 		case ADD:
 			switch(funct){
 			case 0: // two registers
-				a = access_register(byteStream[pc + 1]);
-				b = access_register(byteStream[pc + 2]);
+				a = access_register(byteStream[pc + 1], &registerFile);
+				b = access_register(byteStream[pc + 2], &registerFile);
 				pcNext = pc + 3;
 				break;
 			case 1: // one register and a constant
-				a = access_register(byteStream[pc + 1]);
+				a = access_register(byteStream[pc + 1], &registerFile);
 				b = fetch_data(&byteStream[pc + 2]);
 				pcNext = pc + 2 + DATA_OBJECT_SIZE;
 				break;
@@ -237,7 +120,7 @@ void execute(Byte* byteStream, PCType* length){
 					{
 					// get to next instruction
 					PCType tmp = pc + 2 + DATA_OBJECT_SIZE;
-					push_pc(&tmp);
+					push_pc(&tmp, &registerFile);
 					}
 					// fall into default
 				default:
@@ -286,7 +169,7 @@ void execute(Byte* byteStream, PCType* length){
 				{
 				// get to next instruction
 				PCType tmp = pc + 1 + sizeof(PCType);
-				push_pc(&tmp);
+				push_pc(&tmp, &registerFile);
 				}
 				// fall into default
 			default:
@@ -330,7 +213,7 @@ void execute(Byte* byteStream, PCType* length){
 			break;
 //MLOAD
 		case MLOAD:
-			a = access_register(byteStream[pc + 1]);
+			a = access_register(byteStream[pc + 1], &registerFile);
 			
 			
 			offset = 0;
@@ -338,7 +221,7 @@ void execute(Byte* byteStream, PCType* length){
 			
 			switch(funct){
 			case 1: // load offset Data_Object to r
-				b = access_register(byteStream[pc + 2]);
+				b = access_register(byteStream[pc + 2], &registerFile);
 				offset = b->data.n;
 				
 				pcNext = pc + 1;
@@ -353,16 +236,16 @@ void execute(Byte* byteStream, PCType* length){
 				break;
 				
 			case 3: // pure data load with offset
-				b = access_register(byteStream[pc + 2]);
+				b = access_register(byteStream[pc + 2], &registerFile);
 				offset = b->data.n;
 				
 				pcNext = pc + 1;
 				//no break, fall into next case
 				case 2: // pure data load
 				clear_data(&tmpReturn);
-				tmpReturn.type = access_register(byteStream[pc + 2])->type;
+				tmpReturn.type = access_register(byteStream[pc + 2], &registerFile)->type;
 				
-				finalAddress = a->data.p + offset; // literal offset values are useful for, say, object member loading
+				finalAddress = void_ptr_add(a->data.p, offset); // literal offset values are useful for, say, object member loading
 				
 				switch(tmpReturn.type){
 				case INTEGER:
@@ -412,8 +295,8 @@ void execute(Byte* byteStream, PCType* length){
 			//IntegerType 
 			offset = 0;
 			
-			a = access_register(pc + 1); // registerP
-			b = access_register(pc + 2); // registerV
+			a = access_register(pc + 1, &registerFile); // registerP
+			b = access_register(pc + 2, &registerFile); // registerV
 		
 			switch(funct){
 			case 1:
@@ -435,7 +318,7 @@ void execute(Byte* byteStream, PCType* length){
 				// no break, fall into next case
 				case 2:
 				
-				finalAddress = a->data.p + offset;
+				finalAddress = void_ptr_add(a->data.p, offset);
 				
 				// write
 				switch(b->type){
@@ -490,7 +373,7 @@ void execute(Byte* byteStream, PCType* length){
 			printf("PRINTING\n");
 			switch(funct){
 			case 0: // print register
-				a = access_register(byteStream[pc + 1]);
+				a = access_register(byteStream[pc + 1], &registerFile);
 				pcNext = pc + 2;
 				break;
 			case 1: // print constant object
@@ -530,7 +413,7 @@ void execute(Byte* byteStream, PCType* length){
 			continue;
 //RETURN
 		case RETURN:
-			pc = pop_pc();
+			pc = pop_pc(&registerFile);
 			continue;
 //RSH
 		case RSH:
@@ -555,22 +438,22 @@ void execute(Byte* byteStream, PCType* length){
 		// this is inferred from the return bit in the instruction
 		
 		if (returnBit){ // to returned register
-			*access_register(byteStream[pcNext]) = *r;
+			*access_register(byteStream[pcNext], &registerFile) = *r;
 			// increment pc past return register
 			pc = pcNext + 1;
 		}else{ // to defaultOutput
-			write_default_output(r);
+			write_default_output(r, &registerFile);
 			pc = pcNext;
 		}
 	}
 }
 
-void initialize_register_file(Register_File* rFile){
-	// initialize $0 to always 0
-	Data_Object zeroObject = create_object_INTEGER(0);
-	for (unsigned int i = 0; i < FRAME_STACK_SIZE; i++){
-		rFile->registers[0][i] = zeroObject;
-	}
+//==========================================================
+// BYTESTREAM MANIPULATION
+//==========================================================
+
+Data_Object* fetch_data(Byte* rawBytes){
+	return (Data_Object*) rawBytes;
 }
 
 Data_Object read_bytes(Byte* rawBytes){
@@ -580,19 +463,6 @@ Data_Object read_bytes(Byte* rawBytes){
 	}
 	
 	return castUnion.asObject;
-}
-
-Data_Object* fetch_data(Byte* rawBytes){
-	return (Data_Object*) rawBytes;
-}
-
-PCType read_address_literal(Byte* rawBytes){
-	union{PCType asLong; Byte asBytes[sizeof(PCType)];} castUnion;
-	for (unsigned char i = 0; i < sizeof(PCType); i++){
-		castUnion.asBytes[i] = rawBytes[i];
-	}
-	
-	return castUnion.asLong;
 }
 
 Byte read_bool_direct(Byte* rawBytes){
@@ -620,12 +490,19 @@ RationalType read_double_direct(Byte* rawBytes){
 	return castUnion.asDouble;
 }
 
-// clears only an object's data, type is untouched
-void clear_data(Data_Object* object){
-	object->data.n = 0;
+//==========================================================
+// DATA_OBJECT MANIPULATION
+//==========================================================
+
+PCType read_address_literal(Byte* rawBytes){
+	union{PCType asLong; Byte asBytes[sizeof(PCType)];} castUnion;
+	for (unsigned char i = 0; i < sizeof(PCType); i++){
+		castUnion.asBytes[i] = rawBytes[i];
+	}
+	
+	return castUnion.asLong;
 }
 
-// DATA_OBJECT FACTORIES
 Data_Object create_object_INTEGER(IntegerType n){
 	Data_Object object;
 	object.type = INTEGER;
@@ -669,4 +546,47 @@ Data_Object create_object_STRING(const char* cstr){
 	object.data.s = newString;
 	
 	return object;
+}
+
+// clears only an object's data, type is untouched
+void clear_data(Data_Object* object){
+	object->data.n = 0;
+}
+
+char* get_object_cstring(Data_Object* stringObject){
+	return (stringObject->data.s) + STRING_LENGTH_BYTES;
+}
+
+//==========================================================
+// REGISTER FILE FUNCTIONS
+//==========================================================
+
+void initialize_register_file(Register_File* rFile){
+	// initialize #zero to always 0
+	Data_Object zeroObject = create_object_INTEGER(0);
+	
+	rFile->registers[NUM_REGISTERS - NUM_PERSISTENT_REGISTERS][0] = zeroObject;
+}
+
+// REGISTER FILE OPERATIONS
+Data_Object* access_register(Byte reg, Register_File* rf){
+	unsigned char depth = 0;
+	// get depth if this is a non-persistent register
+	if (reg < (NUM_REGISTERS - NUM_PERSISTENT_REGISTERS)) depth = rf->depth;
+	
+	return &(rf->registers[reg][depth]);
+}
+
+void write_default_output(Data_Object* object, Register_File* rf){
+	*access_register(rf->defaultOutput, rf) = *object;
+}
+
+void push_pc(PCType* pc_entry, Register_File* rf){
+	++rf->pcTop; //TO-DO: bounds checking
+	rf->pcStack[rf->pcTop] = *pc_entry;
+}
+
+PCType pop_pc(Register_File* rf){
+	--rf->pcTop; //TO-DO: bounds checking
+	return rf->pcStack[rf->pcTop + 1];
 }

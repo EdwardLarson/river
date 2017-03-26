@@ -1,17 +1,40 @@
 #ifndef ASSEMBLER_H
 #define ASSEMBLER_H
 
+#include <iostream>
 #include <fstream>
 #include <vector>
+#include <map>
+#include <stack>
 
 #include "VM.h"
+
+#define LONGEST_INSTRUCTION_LENGTH 9
 
 /* ASSEMBLER
 * Assembling object which reads a file containing
 * some assembly code and converts it into bytecode,
 * saved to an output stream. Contains all necessary
 * state for assembling.
+* 
+* argument delimiters
+* '$' : register
+* '#' : persistent register
+* future implementation: ':' for labels
+* 
+* sample assembly
+* sum digits 1-10 and print the results
+* 
+* 0:	SETDO $a
+* 1:	MOVE $zero 			;-> $a
+* 2:	LOAD 1 > $b
+* 3:	ADD $a, $b			;-> $a
+* 4:	ADD 1 > $b
+* 5:	LT $b, 11 > $c
+* 6:	BRANCH $c :3
+* 7:	PRINT $a
 */
+
 class Assembler{
 	
 private: typedef std::map<std::string, Byte> RegisterMap;
@@ -35,8 +58,8 @@ private: typedef union {
 public:
 	Assembler(std::istream& instrm, std::ostream& outstrm);
 	
-	void assemble();
-	void assemble_instruction(const std::string& instruction);
+	bool assemble();
+	
 private:
 	typedef enum {AERROR_NONE, AERROR_WRONGARGS, AERROR_ARGTYPES, AERROR_NOPCODE, AERROR_REGLIMIT, AERROR_BADRET} AssemblerError;
 	AssemblerError error;
@@ -56,6 +79,7 @@ private:
 	void push_frame();
 	void pop_frame();
 	
+	void assemble_instruction(const std::string& instruction);
 	Byte read_opcode(const std::string& instruction, unsigned int& index, char& subfunction);
 	void read_args(const std::string& instruction, unsigned int& index, std::vector<Argument>& args);
 	Argument read_argument(const std::string& instruction, unsigned int& index);
