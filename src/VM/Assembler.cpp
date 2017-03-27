@@ -29,6 +29,7 @@ bool Assembler::assemble(){
 	unsigned int lineCount = 1;
 	
 	// do first pass
+	first_pass();
 	
 	// write metadata
 	write_byte(META_BEGIN);
@@ -71,6 +72,21 @@ bool Assembler::assemble(){
 	std::cout << "file assembly successful" << std::endl;
 	
 	return true;
+}
+
+void first_pass(){
+	// iterate over lines
+	
+	// look for ':' at line beginning
+	
+	// read label identifier and add to map
+	// but what to store as identifier? needs to be bytes written up to that point, but that's not known until second pass
+	
+	// possible solution: ditch outstream entirely and always write to a byte vector 
+	
+	// reset ifstream
+	inStream.clear();
+	inStream.seekg(0, ios::beg);
 }
 
 void Assembler::assemble_instruction(const std::string& instruction){
