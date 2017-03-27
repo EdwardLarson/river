@@ -13,6 +13,13 @@
 #define NUM_REGISTERS 256
 #define NUM_PERSISTENT_REGISTERS 32
 
+#define META_BEGIN		0x00
+#define META_END		0x01
+#define META_VERSION	0x02
+#define META_STRING		0x03
+#define META_NSTRING	0x04
+#define META_CHECKSUM	0x05
+
 #define UNION_CAST(x, destType) \
 	(((union {__typeof__(x) a; destType b;})x).b)
 	
@@ -124,11 +131,21 @@ typedef struct {
 	unsigned int pcTop;
 } Register_File;
 
+typedef struct {
+	char** stringHeads;
+	unsigned int nstrings;
+	unsigned int lastStored;
+	
+	Byte versionMain;
+	Byte versionSub;
+} Meta_Data;
+
 //==========================================================
 // VM FUNCTIONS
 //==========================================================
 
 void execute(Byte* byteStream, PCType* length);
+PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData);
 
 // Bytestream manipulation
 inline Data_Object*	fetch_data(Byte* rawBytes);

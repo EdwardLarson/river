@@ -9,8 +9,12 @@
 #endif
 
 void execute(Byte* byteStream, PCType* length){
-	PCType pc = 0;
-	PCType pcNext = 0;
+	Meta_Data metaData;
+	PCType pc = read_metadata(byteStream, length, &metaData);
+	
+	printf("Running bytecode for version %i:%i\n", metaData.versionMain, metaData.versionSub);
+	
+	PCType pcNext = pc;
 	
 	Byte running = 1;
 	
@@ -74,7 +78,7 @@ void execute(Byte* byteStream, PCType* length){
 			default:
 				r = a;
 			}
-			pcNext = pc + 2;
+			pcNext += 2;
 			break;
 //ADD
 		case ADD:
@@ -82,12 +86,12 @@ void execute(Byte* byteStream, PCType* length){
 			case 0: // two registers
 				a = access_register(byteStream[pc + 1], &registerFile);
 				b = access_register(byteStream[pc + 2], &registerFile);
-				pcNext = pc + 3;
+				pcNext += 3;
 				break;
 			case 1: // one register and a constant
 				a = access_register(byteStream[pc + 1], &registerFile);
 				b = fetch_data(&byteStream[pc + 2]);
-				pcNext = pc + 2 + DATA_OBJECT_SIZE;
+				pcNext += 2 + DATA_OBJECT_SIZE;
 				break;
 			}
 			
@@ -190,13 +194,26 @@ void execute(Byte* byteStream, PCType* length){
 			continue;
 //LOAD
 		case LOAD:
-			
-			///r = read_bytes(&byteStream[pc + 1]);
-			r = fetch_data(&byteStream[pc + 1]);
-			
-			pcNext = pc + 1 + DATA_OBJECT_SIZE;
-			
-			printf("\tpcNext: %ld\n", pcNext); ///DEBUG
+			switch(funct){
+			case 0: // load a normal constant
+				r = fetch_data(&byteStream[pc + 1]);
+				pcNext += 1 + DATA_OBJECT_SIZE;
+				break;
+			case 1: // load a string constant
+				// read next two bytes as high and low of the constant's id
+				{
+				unsigned int stringID = byteStream[pc + 1];
+				stringID = stringID << 8;
+				stringID += byteStream[pc + 2];
+				
+				tmpReturn.type = STRING;
+				tmpReturn.data.s = metaData.stringHeads[stringID];
+				r = &tmpReturn;
+				
+				pcNext += 3;
+				}
+				break;
+			}
 			break;
 //LSH
 		case LSH:
@@ -568,7 +585,6 @@ void initialize_register_file(Register_File* rFile){
 	rFile->registers[NUM_REGISTERS - NUM_PERSISTENT_REGISTERS][0] = zeroObject;
 }
 
-// REGISTER FILE OPERATIONS
 Data_Object* access_register(Byte reg, Register_File* rf){
 	unsigned char depth = 0;
 	// get depth if this is a non-persistent register
@@ -589,4 +605,79 @@ void push_pc(PCType* pc_entry, Register_File* rf){
 PCType pop_pc(Register_File* rf){
 	--rf->pcTop; //TO-DO: bounds checking
 	return rf->pcStack[rf->pcTop + 1];
+}
+
+//==========================================================
+// METADATA FUNCTIONS
+//==========================================================
+
+PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData){
+	PCType pc = 0;
+	
+	unsigned int stringLength;
+	char* stringHead;
+	unsigned int nstrings;
+	
+	while (pc < *length && byteStream[pc] != META_END){
+		switch(byteStream[pc]){
+		case META_BEGIN:
+			pc += 1;
+			break;
+		case META_VERSION:
+			// read version from next 2 bytes
+			// version = <versionMain>:<versionSub> e.g. 1:24
+			metaData->versionMain = byteStream[pc + 1];
+			metaData->versionSub = byteStream[pc + 2];
+			
+			// move pc to next metadata
+			pc += 3;
+			
+		case META_STRING:
+			// read string length from next 2 bytes
+			stringLength = byteStream[pc + 1];
+			stringLength = stringLength << 8;
+			stringLength += byteStream[pc + 2];
+			// allocate memory for string
+			stringHead = (char*) malloc(sizeof(char) * (stringLength + 1)); // 1 added to string length for null character termination
+			// read string characters
+			for (unsigned int i = 0; i < stringLength; i++){
+				stringHead[i] = (char) byteStream[pc + 3 + i];
+			}
+			stringHead[stringLength] = '\0';
+			
+			// store string
+			if (metaData->lastStored == metaData->nstrings){
+				// more strings than expected, do nothing with this string
+				printf("Error: more strings than expected in metadata\n");
+				free(stringHead);
+			}else{
+				metaData->lastStored++;
+				metaData->stringHeads[metaData->lastStored] = stringHead;
+			}
+			
+			// move pc to next metadata
+			pc += 3 + stringLength;
+			
+		case META_NSTRING:
+			// read the number of string constants
+			nstrings = byteStream[pc + 1];
+			nstrings = nstrings << 8;
+			nstrings += byteStream[pc + 2];
+			
+			// allocate memory for strings
+			metaData->nstrings = nstrings;
+			metaData->stringHeads = (char**) malloc(sizeof(char*) * nstrings);
+			
+			// move pc to next metadata
+			pc += 3;
+			break;
+		case META_END:
+			return pc + 1;
+		default:
+			pc += 1;
+		}
+	}
+	
+	// should not reach here
+	return 0;
 }

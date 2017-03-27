@@ -39,11 +39,12 @@ class Assembler{
 	
 private: typedef std::map<std::string, Byte> RegisterMap;
 private: typedef enum {
-	VALUE,
-	REGISTER,
-	REGISTER_P,
-	ADDRESS,
-	LABEL
+	A_VALUE,
+	A_REGISTER,
+	A_REGISTER_P,
+	A_ADDRESS,
+	A_STRING,
+	A_LABEL
 } ArgType;
 private: typedef struct {
 	ArgType type;
@@ -80,6 +81,9 @@ private:
 	Byte nextFreePersistent;
 	std::stack<Byte> freeStack;
 	
+	void first_pass();
+	void write_byte(Byte b);
+	
 	Byte get_register(const std::string& identifier, bool persistent=false);
 	void push_frame();
 	void pop_frame();
@@ -91,8 +95,6 @@ private:
 	Byte read_returns(const std::string& instruction, unsigned int& index, Byte& returnReg);
 	Data_Object read_literal(const std::string& literal);
 	void assemble_argument(const Argument& arg);
-	
-	void write_byte(Byte b);
 	
 	Byte get_opcode_hex(std::string& opcode) const;
 	Byte get_funct(Byte opcodeShifted, std::vector<Argument> args, char subfunction);

@@ -21,8 +21,21 @@ Assembler::Assembler(std::istream& instrm, std::vector<Byte>* byteVector): outTy
 // Returns true on assembly success, false on failure/error
 bool Assembler::assemble(){
 	
+	//TO-DO: assembler must make two passes
+	// first pass will indentify & replace labels, and remove string constants
+	// second pass will 
+	
 	error = AERROR_NONE;
 	unsigned int lineCount = 1;
+	
+	// do first pass
+	
+	// write metadata
+	write_byte(META_BEGIN);
+	write_byte(META_VERSION);
+	write_byte(0x00); // versionMain = 0
+	write_byte(0x01); // versionSub = 1
+	write_byte(META_END);
 	
 	
 	std::string line;
@@ -205,28 +218,37 @@ void Assembler::read_args(const std::string& instruction, unsigned int& index, s
 Assembler::Argument Assembler::read_argument(const std::string& instruction, unsigned int& index){
 	Argument argument;
 	
+	// increment index until reaching beginning of argument
+	for (; index < instruction.length() && instruction[index] == ' '; ++index);
+	
 	switch(instruction[index]){
 	case '$':
-		argument.type = REGISTER;
+		argument.type = A_REGISTER;
 		++index;
 		break;
 	case '#':
-		argument.type = REGISTER_P;
+		argument.type = A_REGISTER_P;
 		++index;
 		break;
 	case '@':
-		argument.type = ADDRESS;
+		argument.type = A_ADDRESS;
 		++index;
 		break;
 	case ':':
-		argument.type = LABEL;
+		argument.type = A_LABEL;
+		++index;
+		break;
+	case '"':
+		argument.type = A_STRING;
 		++index;
 		break;
 	default:
-		argument.type = VALUE;
+		argument.type = A_VALUE;
 	}
 	
-	while(index < instruction.length() && instruction[index] != ' '){
+	while(index < instruction.length() 
+			&& ((argument.type != A_STRING && instruction[index] != ' ') || (argument.type == A_STRING && instruction[index] != '"'))) // loops until reaching a space or, if this is a string, until reaching a "
+	{
 		argument.arg += instruction[index];
 		++index;
 	}
@@ -254,11 +276,11 @@ Byte Assembler::read_returns(const std::string& instruction, unsigned int& index
 	}
 	
 	Argument returnArg = read_argument(instruction, index);
-	if (!(returnArg.type == REGISTER || returnArg.type == REGISTER_P)){
+	if (!(returnArg.type == A_REGISTER || returnArg.type == A_REGISTER_P)){
 		// bad return type error
 		error = AERROR_BADRET;
 	}else{
-		returnReg = get_register(returnArg.arg, returnArg.type == REGISTER_P);
+		returnReg = get_register(returnArg.arg, returnArg.type == A_REGISTER_P);
 	}
 	
 	return 0x80;
@@ -313,7 +335,7 @@ Data_Object Assembler::read_literal(const std::string& literal){
 }
 
 void Assembler::assemble_argument(const Argument& arg){
-	if (arg.type == VALUE){
+	if (arg.type == A_VALUE){
 		Data_Object_Cast_Union castUnion;
 		castUnion.data = read_literal(arg.arg);
 		
@@ -323,14 +345,14 @@ void Assembler::assemble_argument(const Argument& arg){
 			write_byte(castUnion.bytes[i]);
 		}
 		
-	}else if (arg.type == REGISTER){
+	}else if (arg.type == A_REGISTER){
 		Byte reg = get_register(arg.arg);
 		
 		if (error != AERROR_REGLIMIT){
 			std::cout << "\tsuccessfully mapped " << arg.arg << " to register " << (int) reg << std::endl; /// DEBUG
 			write_byte(reg);
 		}
-	}else if(arg.type == REGISTER_P){
+	}else if(arg.type == A_REGISTER_P){
 		Byte reg = get_register(arg.arg, true);
 		if (error != AERROR_REGLIMIT){
 			std::cout << "\tsuccessfully mapped " << arg.arg << " to persistent register " << (int) reg << std::endl; /// DEBUG
@@ -501,14 +523,14 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 			return 0x00;
 		}
 		
-		if ((args[0].type == REGISTER || args[0].type == REGISTER_P) 
-				&& (args[1].type == REGISTER || args[1].type == REGISTER_P)){ // GG
+		if ((args[0].type == A_REGISTER || args[0].type == A_REGISTER_P) 
+				&& (args[1].type == A_REGISTER || args[1].type == A_REGISTER_P)){ // GG
 			return 0x00;
-		}else if ((args[0].type == REGISTER || args[0].type == REGISTER_P) 
-				&& (args[1].type == VALUE)){ // GV
+		}else if ((args[0].type == A_REGISTER || args[0].type == A_REGISTER_P) 
+				&& (args[1].type == A_VALUE)){ // GV
 			return 0x01;
-		}else if ((args[0].type == VALUE) 
-				&& (args[1].type == REGISTER || args[1].type == REGISTER_P)){ // VG
+		}else if ((args[0].type == A_VALUE) 
+				&& (args[1].type == A_REGISTER || args[1].type == A_REGISTER_P)){ // VG
 			return 0x02;
 		}else{
 			std::cout << "\tC2" << std::endl;
@@ -575,7 +597,11 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 			error = AERROR_WRONGARGS;
 		}
 		
-		return 0x00;
+		if (args[0].type == A_STRING){
+			return 0x01;
+		}else{
+			return 0x00;
+		}
 		break;
 	case MALLOC:
 		return 0x00;
@@ -592,9 +618,9 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 				error = AERROR_WRONGARGS;
 			}
 			
-			if (args[0].type == REGISTER || args[0].type == REGISTER_P)
+			if (args[0].type == A_REGISTER || args[0].type == A_REGISTER_P)
 				return 0x00;
-			else if (args[0].type == VALUE)
+			else if (args[0].type == A_VALUE)
 				return 0x01;
 		}
 		break;
