@@ -16,9 +16,9 @@ int main(int argc, char** argv){
 		Assembler a(inStream, outStream);
 		a.assemble();
 		
-		//std::cout << "Wrote " << (outStream.tellp() * sizeof(Byte)) << " bytes to " << argv[2] << std::endl;
-		//outStream.close();
-		//inStream.close();
+		std::cout << std::dec << "Wrote " << (outStream.tellp() * sizeof(Byte)) << " bytes to " << argv[2] << std::endl;
+		outStream.close();
+		inStream.close();
 	}
 	
 	std::cout << "before end" << std::endl;

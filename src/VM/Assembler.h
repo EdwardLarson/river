@@ -56,16 +56,21 @@ private: typedef union {
 } Data_Object_Cast_Union;
 	
 public:
+	Assembler(std::istream& instrm, std::vector<Byte>* byteVector);
 	Assembler(std::istream& instrm, std::ostream& outstrm);
 	
 	bool assemble();
 	
 private:
 	typedef enum {AERROR_NONE, AERROR_WRONGARGS, AERROR_ARGTYPES, AERROR_NOPCODE, AERROR_REGLIMIT, AERROR_BADRET} AssemblerError;
+	typedef enum {AOUT_OSTREAM, AOUT_VECTOR} OutputType;
+	
 	AssemblerError error;
+	const OutputType outType;
 
 	std::istream& inStream;
 	std::ostream& outStream;
+	std::vector<Byte>* byteVec;
 	
 	RegisterMap mapping;
 	RegisterMap persistent;
@@ -86,6 +91,8 @@ private:
 	Byte read_returns(const std::string& instruction, unsigned int& index, Byte& returnReg);
 	Data_Object read_literal(const std::string& literal);
 	void assemble_argument(const Argument& arg);
+	
+	void write_byte(Byte b);
 	
 	Byte get_opcode_hex(std::string& opcode) const;
 	Byte get_funct(Byte opcodeShifted, std::vector<Argument> args, char subfunction);

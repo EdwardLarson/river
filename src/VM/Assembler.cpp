@@ -1,12 +1,20 @@
 #include "VM.h"
 #include "Assembler.h"
 
-Assembler::Assembler(std::istream& instrm, std::ostream& outstrm): inStream(instrm), outStream(outstrm){
+Assembler::Assembler(std::istream& instrm, std::ostream& outstrm): outType(AOUT_OSTREAM), inStream(instrm), outStream(outstrm), byteVec(NULL) {
 	nextFree = 0;
-	nextFreePersistent = 0;
+	nextFreePersistent = NUM_REGISTERS - NUM_PERSISTENT_REGISTERS;
 	
 	// add mapping to persistent register 0 for "$zero"
-	std::cout << "\tzero reg: " << (int) get_register("zero") << std::endl;
+	std::cout << "\tzero reg: " << (int) get_register("zero", true) << std::endl;
+}
+
+Assembler::Assembler(std::istream& instrm, std::vector<Byte>* byteVector): outType(AOUT_VECTOR), inStream(instrm), outStream(std::cout), byteVec(byteVector) {
+	nextFree = 0;
+	nextFreePersistent = NUM_REGISTERS - NUM_PERSISTENT_REGISTERS;
+	
+	// add mapping to persistent register 0 for "$zero"
+	std::cout << "\tzero reg: " << (int) get_register("zero", true) << std::endl;
 }
 
 // Assemble the given input into bytecode. Outputs to the given output stream.
@@ -14,7 +22,7 @@ Assembler::Assembler(std::istream& instrm, std::ostream& outstrm): inStream(inst
 bool Assembler::assemble(){
 	
 	error = AERROR_NONE;
-	unsigned int currLine = 1;
+	unsigned int lineCount = 1;
 	
 	
 	std::string line;
@@ -26,28 +34,30 @@ bool Assembler::assemble(){
 			std::cout << "line assemby success" << std::endl;
 			break;
 		case AERROR_WRONGARGS:
-			std::cout << "error [" << currLine << "]: instruction has wrong args" << std::endl;
+			std::cout << "error [" << lineCount << "]: instruction has wrong args" << std::endl;
 			return false;
 		case AERROR_NOPCODE:
-			std::cout << "error [" << currLine << "]: opcode not found" << std::endl;
+			std::cout << "error [" << lineCount << "]: opcode not found" << std::endl;
 			return false;
 		case AERROR_REGLIMIT:
-			std::cout << "error [" << currLine << "]: not enough registers to allocate" << std::endl;
+			std::cout << "error [" << lineCount << "]: not enough registers to allocate" << std::endl;
 			return false;
 		case AERROR_BADRET:
-			std::cout << "error [" << currLine << "]: bad return type" << std::endl;
+			std::cout << "error [" << lineCount << "]: bad return type" << std::endl;
 			return false;
 		case AERROR_ARGTYPES:
-			std::cout << "error [" << currLine << "]: incorrect argument types" << std::endl;
+			std::cout << "error [" << lineCount << "]: incorrect argument types" << std::endl;
 			return false;
 		}
 		
 		error = AERROR_NONE;
 		
-		++currLine;
+		++lineCount;
 	}
 	
 	std::cout << "file assembly successful" << std::endl;
+	
+	return true;
 }
 
 void Assembler::assemble_instruction(const std::string& instruction){
@@ -82,7 +92,7 @@ void Assembler::assemble_instruction(const std::string& instruction){
 	
 	std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
 	
-	outStream << std::hex << fullOpcode;
+	write_byte(fullOpcode);
 	
 	// compile arguments into bytes and output
 	for (unsigned int i = 0; i < args.size(); i++){
@@ -91,7 +101,7 @@ void Assembler::assemble_instruction(const std::string& instruction){
 	
 	// add return argument to tail of instruction
 	if (returnBit){
-		outStream << std::hex << returnReg;
+		write_byte(returnReg);
 	}
 }
 
@@ -112,12 +122,13 @@ Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
 		}
 	}
 	
-	std::pair<std::string, Byte> entry(identifier, nextFree);
 	std::pair<RegisterMap::iterator, bool> search;
 	
 	if (isPersistent){
+		std::pair<std::string, Byte> entry(identifier, nextFreePersistent);
 		search = persistent.insert(entry);
 	}else{
+		std::pair<std::string, Byte> entry(identifier, nextFree);
 		search = mapping.insert(entry);
 	}
 	
@@ -126,11 +137,11 @@ Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
 		
 		// increment nextFree and return the allocated register
 		
-		std::cout << "\tallocated new register " << identifier << std::endl;
+		std::cout << "\tallocated new register " << identifier << std::endl; /// DEBUG
 		
 		if (isPersistent){
 			++nextFreePersistent;
-			return nextFree - 1;
+			return nextFreePersistent - 1;
 		}else{
 			++nextFree;
 			return nextFree - 1;
@@ -139,7 +150,7 @@ Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
 		// entry not inserted
 		
 		// return the previously allocated register
-		std::cout << "\tidentified old register " << identifier << std::endl;
+		std::cout << "\tidentified old register " << identifier << std::endl; /// DEBUG
 		return search.first->second;
 	}
 }
@@ -162,9 +173,12 @@ void Assembler::pop_frame(){
 Byte Assembler::read_opcode(const std::string& instruction, unsigned int& index, char& subfunction){
 	std::string opcodeRaw = "";
 	
-	for ( ; instruction[index] != ' '; ++index){
+	for ( ; index < instruction.length() && instruction[index] != ' '; ++index){
 		if (instruction[index] == '_'){
-			subfunction = instruction[index + 1];
+			++index;
+			subfunction = instruction[index];
+			++index;
+			break;
 		}
 		opcodeRaw += instruction[index];
 	}
@@ -244,7 +258,7 @@ Byte Assembler::read_returns(const std::string& instruction, unsigned int& index
 		// bad return type error
 		error = AERROR_BADRET;
 	}else{
-		returnReg = get_register(returnArg.arg);
+		returnReg = get_register(returnArg.arg, returnArg.type == REGISTER_P);
 	}
 	
 	return 0x80;
@@ -306,7 +320,7 @@ void Assembler::assemble_argument(const Argument& arg){
 		std::cout << "created Data_Object {type=" << castUnion.data.type << ", data=" << castUnion.data.data.n << "} for literal " << arg.arg << std::endl; ///DEBUG
 		
 		for (unsigned int i = 0; i < DATA_OBJECT_SIZE; i++){
-			outStream << castUnion.bytes[i];
+			write_byte(castUnion.bytes[i]);
 		}
 		
 	}else if (arg.type == REGISTER){
@@ -314,14 +328,25 @@ void Assembler::assemble_argument(const Argument& arg){
 		
 		if (error != AERROR_REGLIMIT){
 			std::cout << "\tsuccessfully mapped " << arg.arg << " to register " << (int) reg << std::endl; /// DEBUG
-			outStream << reg;
+			write_byte(reg);
 		}
 	}else if(arg.type == REGISTER_P){
 		Byte reg = get_register(arg.arg, true);
 		if (error != AERROR_REGLIMIT){
 			std::cout << "\tsuccessfully mapped " << arg.arg << " to persistent register " << (int) reg << std::endl; /// DEBUG
-			outStream << reg;
+			write_byte(reg);
 		}
+	}
+}
+
+void Assembler::write_byte(Byte b){
+	switch(outType){
+	case AOUT_OSTREAM:
+		outStream << b;
+		break;
+	case AOUT_VECTOR:
+		byteVec->push_back(b);
+		break;
 	}
 }
 
@@ -470,6 +495,12 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 	case RSH:
 	case SUB:
 	case XOR:
+		if (args.size() != 2){
+			error = AERROR_WRONGARGS;
+			std::cout << "\tC1" << std::endl;
+			return 0x00;
+		}
+		
 		if ((args[0].type == REGISTER || args[0].type == REGISTER_P) 
 				&& (args[1].type == REGISTER || args[1].type == REGISTER_P)){ // GG
 			return 0x00;
@@ -480,7 +511,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 				&& (args[1].type == REGISTER || args[1].type == REGISTER_P)){ // VG
 			return 0x02;
 		}else{
-			std::cout << "\tB" << std::endl;
+			std::cout << "\tC2" << std::endl;
 			error = AERROR_WRONGARGS;
 			return 0x00;
 		}
@@ -553,7 +584,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		return 0x00;
 		break;
 	case PRINT:
-		if (subfunction == 'D'){
+		if (subfunction == 'B'){
 			return 0x02;
 		}else{
 			if (args.size() != 1){
