@@ -10,18 +10,15 @@
 	ptr + offset
 #endif
 
-#define RIVER_VERSION_MAIN	0
-#define RIVER_VERSION_SUB	1
-
 void execute(Byte* byteStream, PCType* length){
 	Meta_Data metaData;
 	PCType pc = read_metadata(byteStream, length, &metaData);
 	
 	if (metaData.versionMain > RIVER_VERSION_MAIN){
-		printf("Error: VM is version %i, but bytecode is for future version %i", RIVER_VERSION_MAIN, metaData.versionMain);
+		printf("Error: VM is version %i, but bytecode is for future version %i", WWHEEL_VERSION_MAIN, metaData.versionMain);
 		return;
 	}else if (metaData.versionMain < RIVER_VERSION_MAIN){
-		printf("Warning: VM is version %i, but bytecode is for previous version %i", RIVER_VERSION_MAIN, metaData.versionMain);
+		printf("Warning: VM is version %i, but bytecode is for previous version %i", WWHEEL_VERSION_MAIN, metaData.versionMain);
 	}
 	
 	printf("Running bytecode for version %i:%i\n", metaData.versionMain, metaData.versionSub);

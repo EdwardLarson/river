@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define WWHEEL_VERSION_MAIN	0
+#define WWHEEL_VERSION_SUB	1
+
 #define REGISTER_NODE_SIZE 512
 #define DATA_OBJECT_SIZE sizeof(Data_Object)
 #define PC_STACK_SIZE 256

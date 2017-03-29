@@ -7,7 +7,6 @@
 #define nDELIMITERS 7
 
 #include <string>
-#include <unordered_map>
 
 // Types of tokens: reserved words, identifier, literal, operator
 
@@ -32,12 +31,5 @@ struct TokenPair{
 	TokenType type;
 	std::string token;
 };
-
-struct ClassIdent{
-	
-};
-
-class Data_Object;
-class Data_ObjectFunction;
 	
 #endif
