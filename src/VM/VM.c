@@ -569,10 +569,6 @@ RationalType read_double_direct(Byte* rawBytes){
 	return castUnion.asDouble;
 }
 
-//==========================================================
-// DATA_OBJECT MANIPULATION
-//==========================================================
-
 PCType read_address_literal(Byte* rawBytes){
 	union{PCType asLong; Byte asBytes[sizeof(PCType)];} castUnion;
 	for (unsigned char i = 0; i < sizeof(PCType); i++){
@@ -581,6 +577,10 @@ PCType read_address_literal(Byte* rawBytes){
 	
 	return castUnion.asLong;
 }
+
+//==========================================================
+// DATA_OBJECT MANIPULATION
+//==========================================================
 
 Data_Object create_object_INTEGER(IntegerType n){
 	Data_Object object;

@@ -1,15 +1,7 @@
 #include "VM.h"
 #include "Assembler.h"
 
-Assembler::Assembler(std::istream& instrm, std::ostream& outstrm): outType(AOUT_OSTREAM), inStream(instrm), outStream(outstrm), byteVec(NULL) {
-	nextFree = 0;
-	nextFreePersistent = NUM_REGISTERS - NUM_PERSISTENT_REGISTERS;
-	
-	// add mapping to persistent register 0 for "$zero"
-	std::cout << "\tzero reg: " << (int) get_register("zero", true) << std::endl;
-}
-
-Assembler::Assembler(std::istream& instrm, std::vector<Byte>* byteVector): outType(AOUT_VECTOR), inStream(instrm), outStream(std::cout), byteVec(byteVector) {
+Assembler::Assembler(std::istream& instrm): inStream(instrm), byteVec() {
 	nextFree = 0;
 	nextFreePersistent = NUM_REGISTERS - NUM_PERSISTENT_REGISTERS;
 	
@@ -25,11 +17,14 @@ bool Assembler::assemble(){
 	// first pass will indentify & replace labels, and remove string constants
 	// second pass will 
 	
+	/*
+	label handling: as the assembly is read, instructions need to know what their label
+	*/
+	
+			std::cout << "beginning assembly" << std::endl; ///DEBUG
+	
 	error = AERROR_NONE;
 	unsigned int lineCount = 1;
-	
-	// do first pass
-	first_pass();
 	
 	// write metadata
 	write_byte(META_BEGIN);
@@ -41,6 +36,7 @@ bool Assembler::assemble(){
 	
 	std::string line;
 	while (std::getline(inStream, line)){ // crashes with a segfault
+	
 		assemble_instruction(line);
 		
 		switch(error){
@@ -69,24 +65,25 @@ bool Assembler::assemble(){
 		++lineCount;
 	}
 	
+	// go back and fill in labels
+	for (LabelMap::const_iterator currentLabel = labelMap.begin(); currentLabel != labelMap.end(); ++currentLabel){
+		for (std::list<PCType>::const_iterator currentReference = currentLabel->second.second.begin(); currentReference != currentLabel->second.second.end(); ++currentReference){
+			// cast label's address to bytes using a cast union
+			union {PCType asAddress; Byte asBytes[sizeof(PCType)];} castUnion;
+			castUnion.asAddress = currentLabel->second.first;
+			
+			// write each byte of address to this reference location
+			for (unsigned int i = 0; i < sizeof(PCType); i++){
+				byteVec[*currentReference + i] = castUnion.asBytes[i];
+			}
+			
+					std::cout << "wrote a reference to " << currentLabel->first << " at " << *currentReference << std::endl; ///DEBUG
+		}
+	}
+	
 	std::cout << "file assembly successful" << std::endl;
 	
 	return true;
-}
-
-void first_pass(){
-	// iterate over lines
-	
-	// look for ':' at line beginning
-	
-	// read label identifier and add to map
-	// but what to store as identifier? needs to be bytes written up to that point, but that's not known until second pass
-	
-	// possible solution: ditch outstream entirely and always write to a byte vector 
-	
-	// reset ifstream
-	inStream.clear();
-	inStream.seekg(0, ios::beg);
 }
 
 void Assembler::assemble_instruction(const std::string& instruction){
@@ -94,32 +91,55 @@ void Assembler::assemble_instruction(const std::string& instruction){
 	
 	std::cout << std::hex;
 	
-	std::cout << "instruction: " << instruction << std::endl; ///DEBUG 
+			std::cout << "instruction: " << instruction << std::endl; ///DEBUG 
+	
+	// check if line is a label
+	if (instruction[0] == ':'){
+		
+				std::cout << "line is label" << std::endl; ///DEBUG
+		
+		std::string label = "";
+		for (unsigned int i = 1; i < instruction.length(); i++){
+			if (instruction[i] == ';'){
+				return;
+			}else if(instruction[i] == ':' && label.length() > 0){ // allows for multiple labels per line, e.g. "LOOP1:LOOP2:RESTART"
+				define_label(label);
+				label = "";
+			}else{
+				label += instruction[i];
+				}
+		}
+		if (label.length() > 0){
+			define_label(label);
+		}
+		
+		return;
+	}
 	
 	char subfunction = ' ';
 	Byte opcode = read_opcode(instruction, index, subfunction);
 	
-	std::cout << "opcode: " << (int) opcode << std::endl; ///DEBUG 
+			std::cout << "opcode: " << (int) opcode << std::endl; ///DEBUG 
 	
 	std::vector<Argument> args;
 	read_args(instruction, index, args);
 	
-	std::cout << "checkpoint: args read" << std::endl; ///DEBUG 
+			std::cout << "checkpoint: args read" << std::endl; ///DEBUG 
 	
 	Byte funct = get_funct(opcode, args, subfunction);
 	
-	std::cout << "funct: " << (int) funct << std::endl; ///DEBUG 
+			std::cout << "funct: " << (int) funct << std::endl; ///DEBUG 
 	
 	Byte returnReg = 0;
 	Byte returnBit = read_returns(instruction, index, returnReg);
 	
-	std::cout << "return bit: " << (int) returnBit << std::endl; ///DEBUG 
+			std::cout << "return bit: " << (int) returnBit << std::endl; ///DEBUG 
 	
 	// compile full opcode and output
 	// opcode format: <rooo-ooff>
 	Byte fullOpcode = returnBit | opcode | funct;
 	
-	std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
+			std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
 	
 	write_byte(fullOpcode);
 	
@@ -374,18 +394,61 @@ void Assembler::assemble_argument(const Argument& arg){
 			std::cout << "\tsuccessfully mapped " << arg.arg << " to persistent register " << (int) reg << std::endl; /// DEBUG
 			write_byte(reg);
 		}
+	}else if (arg.type == A_LABEL){
+		// store the location that this reference is used
+		// that is, the location of where the first byte will be written to in loop
+		add_label_ref(arg.arg);
+		// write blank bytes where address literal will go
+		for (unsigned int i = 0; i < sizeof(PCType); i++){
+			write_byte(0x00);
+		}
 	}
 }
 
 void Assembler::write_byte(Byte b){
-	switch(outType){
-	case AOUT_OSTREAM:
-		outStream << b;
-		break;
-	case AOUT_VECTOR:
-		byteVec->push_back(b);
-		break;
+	byteVec.push_back(b);
+}
+
+void Assembler::define_label(const std::string& label){
+	LabelMap::iterator search = labelMap.find(label);
+	
+	if (search == labelMap.end()){
+		// create a new label pairing between label location and references
+		std::pair<PCType, std::list<PCType> > locAndRefs;
+		locAndRefs.first = byteVec.size();
+		
+		labelMap[label] = locAndRefs;
+		
+		std::cout << "\tDEFINED label " << label << " to " << byteVec.size() << std::endl; ///DEBUG
+	}else{
+		// set this label's location to the next byte (next instruction) which will be written
+		search->second // std::pair<PCType, std::list<PCType>>
+			.first // PCType
+				= byteVec.size();
+				
+		std::cout << "\tREDEFINED label " << label << " to " << byteVec.size() << std::endl; /// DEBUG
 	}
+}
+
+void Assembler::add_label_ref(const std::string& label){
+	LabelMap::iterator search = labelMap.find(label);
+	
+	if (search == labelMap.end()){
+		// create a new label pairing between label location and references
+		std::pair<PCType, std::list<PCType> > locAndRefs;
+		locAndRefs.second.push_back(byteVec.size());
+		
+		labelMap[label] = locAndRefs;
+	}else{
+		// add a reference to this label at the next-written byte
+		search->second // std::pair<PCType, std::list<PCType>>
+			.second // std::list<PCType>
+				.push_back(byteVec.size());
+				
+		
+	}
+	
+	std::cout << "\tREFERENCED " << label << " at " << byteVec.size() << std::endl; /// DEBUG
 }
 
 Byte Assembler::get_opcode_hex(std::string& opcode) const{

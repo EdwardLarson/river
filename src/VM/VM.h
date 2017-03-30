@@ -9,7 +9,7 @@
 #define WWHEEL_VERSION_SUB	1
 
 #define REGISTER_NODE_SIZE 512
-#define DATA_OBJECT_SIZE sizeof(Data_Object)
+#define DATA_OBJECT_SIZE 16
 #define PC_STACK_SIZE 256
 #define STRING_LENGTH_BYTES 8
 #define FRAME_STACK_SIZE 64

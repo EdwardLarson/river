@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <stack>
+#include <list>
 
 #include "VM.h"
 
@@ -57,32 +58,34 @@ private: typedef union {
 } Data_Object_Cast_Union;
 	
 public:
-	Assembler(std::istream& instrm, std::vector<Byte>* byteVector);
-	Assembler(std::istream& instrm, std::ostream& outstrm);
+	Assembler(std::istream& instrm);
 	
 	bool assemble();
+	const std::vector<Byte>& get_bytecode(){return byteVec;};
 	
 private:
 	typedef enum {AERROR_NONE, AERROR_WRONGARGS, AERROR_ARGTYPES, AERROR_NOPCODE, AERROR_REGLIMIT, AERROR_BADRET} AssemblerError;
-	typedef enum {AOUT_OSTREAM, AOUT_VECTOR} OutputType;
+	// for each label, stores the actual pointer for that label and a list of every instruction which references this label
+	typedef std::map<std::string, std::pair<PCType, std::list<PCType> > > LabelMap; 
+	
 	
 	AssemblerError error;
-	const OutputType outType;
 
 	std::istream& inStream;
-	std::ostream& outStream;
-	std::vector<Byte>* byteVec;
+	std::vector<Byte> byteVec;
 	
 	RegisterMap mapping;
 	RegisterMap persistent;
 	std::stack<RegisterMap> mappingStack;
+	LabelMap labelMap;
 	
 	Byte nextFree;
 	Byte nextFreePersistent;
 	std::stack<Byte> freeStack;
 	
-	void first_pass();
 	void write_byte(Byte b);
+	void define_label(const std::string& label);
+	void add_label_ref(const std::string& label);
 	
 	Byte get_register(const std::string& identifier, bool persistent=false);
 	void push_frame();
