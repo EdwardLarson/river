@@ -113,7 +113,7 @@ typedef struct {
 	Data data; // 8 bytes
 	Data_Type type; // 4 bytes
 	// 4 extra bytes
-	Byte extra[4];
+	Byte aux[4]; // reserve last wo, allow first two to be used by data types
 } Data_Object;
 
 /* Register_File
@@ -133,6 +133,7 @@ typedef struct {
 
 typedef struct {
 	char** stringHeads;
+	unsigned int* stringLens;
 	unsigned int nstrings;
 	unsigned int lastStored;
 	

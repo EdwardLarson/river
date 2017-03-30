@@ -220,6 +220,8 @@ void execute(Byte* byteStream, PCType* length){
 				
 				tmpReturn.type = STRING;
 				tmpReturn.data.s = metaData.stringHeads[stringID];
+				tmpReturn.aux[0] == metaData.stringLengs[stringID] >> 8;
+				tmpReturn.aux[1] == metaData.stringLengs[stringID] & 0xFF;
 				r = &tmpReturn;
 				
 				pcNext += 3;
@@ -236,9 +238,60 @@ void execute(Byte* byteStream, PCType* length){
 			break;
 //MALLOC
 		case MALLOC:
+			a = access_register(byteStream[pc + 1]);
+			b = access_register(byteStream[pc + 2]);
+			
+			tmpReturn.type = POINTER;
+			
+			switch(funct){
+			case 0:
+				tmpReturn.data.p = malloc(DATA_OBJECT_SIZE * b->data.n);
+				break;
+			case 1:
+				switch(a->data.type){
+				case INTEGER:
+					tmpReturn.data.p = malloc(sizeof(IntegerType) * b->data.n);
+					break;
+				case RATIONAL:
+					tmpReturn.data.p = malloc(sizeof(RationalType) * b->data.n);
+					break;
+				case NIL:
+					tmpReturn.data.p = 0x00;
+					break;
+				case BOOL:
+					tmpReturn.data.p = malloc(sizeof(Byte) * b->data.n);
+					break;
+				case STRING:
+					tmpReturn.data.p = malloc(sizeof(char*) * b->data.n);
+					break;
+				case POINTER:
+					tmpReturn.data.p = malloc(sizeof(void*) * b->data.n);
+					break;
+				}
+				break;
+			}
+			
+			pcNext += 3;
+			
 			break;
 //MFREE			
 		case MFREE:
+			a = access_register(byteStream[pc + 1]);
+			
+			switch(funct){
+			case 0: 
+				free(a->data.p);
+				break;
+			case 1:
+				// check aux bytes
+				if (0){
+					free (a->data.p);
+				}
+				break;
+			}
+			
+			pcNext += 2;
+			
 			break;
 //MLOAD
 		case MLOAD:
@@ -650,12 +703,11 @@ PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData
 			stringLength = stringLength << 8;
 			stringLength += byteStream[pc + 2];
 			// allocate memory for string
-			stringHead = (char*) malloc(sizeof(char) * (stringLength + 1)); // 1 added to string length for null character termination
+			stringHead = (char*) malloc(sizeof(char) * (stringLength));
 			// read string characters
 			for (unsigned int i = 0; i < stringLength; i++){
 				stringHead[i] = (char) byteStream[pc + 3 + i];
 			}
-			stringHead[stringLength] = '\0';
 			
 			// store string
 			if (metaData->lastStored == metaData->nstrings){
@@ -665,6 +717,7 @@ PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData
 			}else{
 				metaData->lastStored++;
 				metaData->stringHeads[metaData->lastStored] = stringHead;
+				metaData->stringLens[metaData->lastStored] = stringLength;
 			}
 			
 			// move pc to next metadata
@@ -679,6 +732,7 @@ PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData
 			// allocate memory for strings
 			metaData->nstrings = nstrings;
 			metaData->stringHeads = (char**) malloc(sizeof(char*) * nstrings);
+			metaData->stringLens = (char**) malloc(sizeof(unsigned int) * nstrings);
 			
 			// move pc to next metadata
 			pc += 3;
