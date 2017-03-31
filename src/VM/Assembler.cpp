@@ -77,7 +77,7 @@ bool Assembler::assemble(){
 				byteVec[*currentReference + i] = castUnion.asBytes[i];
 			}
 			
-					std::cout << "wrote a reference to " << currentLabel->first << " at " << *currentReference << std::endl; ///DEBUG
+					std::cout << "wrote a reference to " << currentLabel->first << '(' << currentLabel->second.first << ") at " << *currentReference << std::endl; ///DEBUG
 		}
 	}
 	
@@ -141,6 +141,7 @@ void Assembler::assemble_instruction(const std::string& instruction){
 	
 			std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
 	
+			std::cout << "\n\tInstruction {" << instruction << "} written at " << byteVec.size() << std::endl << std::endl;
 	write_byte(fullOpcode);
 	
 	// compile arguments into bytes and output

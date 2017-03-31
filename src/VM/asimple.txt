@@ -1,0 +1,9 @@
+MOVE #zero > $a
+LOAD 5 > $b
+PRINT $a
+PRINT $b
+ADD $a $b > $c
+PRINT $c
+ADD $c $c > $c
+PRINT $c
+HALT

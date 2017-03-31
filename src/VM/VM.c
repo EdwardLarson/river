@@ -10,20 +10,21 @@
 	ptr + offset
 #endif
 
-void execute(Byte* byteStream, PCType* length){
+void execute(const Byte* byteStream, const PCType* length){
 	Meta_Data metaData;
 	PCType pc = read_metadata(byteStream, length, &metaData);
 	
-	if (metaData.versionMain > RIVER_VERSION_MAIN){
+	if (metaData.versionMain > WWHEEL_VERSION_MAIN){
 		printf("Error: VM is version %i, but bytecode is for future version %i", WWHEEL_VERSION_MAIN, metaData.versionMain);
 		return;
-	}else if (metaData.versionMain < RIVER_VERSION_MAIN){
+	}else if (metaData.versionMain < WWHEEL_VERSION_MAIN){
 		printf("Warning: VM is version %i, but bytecode is for previous version %i", WWHEEL_VERSION_MAIN, metaData.versionMain);
 	}
 	
 	printf("Running bytecode for version %i:%i\n", metaData.versionMain, metaData.versionSub);
+	printf("Execution beginning at pc=%ld\n", pc);
 	
-	PCType pcNext = pc;
+	PCType pcNext = pc + 1;
 	
 	Byte running = 1;
 	
@@ -36,9 +37,9 @@ void execute(Byte* byteStream, PCType* length){
 	void* finalAddress;
 	
 	// temporary argument and return pointers
-	Data_Object* a;
-	Data_Object* b;
-	Data_Object* r;
+	const Data_Object* a;
+	const Data_Object* b;
+	const Data_Object* r;
 	Data_Object tmpReturn; // r will point to here if an instruction returns a totally new object
 	
 	Register_File registerFile;
@@ -48,7 +49,8 @@ void execute(Byte* byteStream, PCType* length){
 		
 		printf("\tpc = %ld\n", pc); ///DEBUG
 		
-		pcNext = pc;
+		pcNext = pc + 1; // automatically incremented 1 byte for instruction, so operations should only increment it for argument bytes
+		
 		instruction = byteStream[pc];
 		// instruction is structured as <rooo-ooff>
 		//  r: return bit; returns to defaultOutput register if 0, to a return argument if 1
@@ -87,7 +89,7 @@ void execute(Byte* byteStream, PCType* length){
 			default:
 				r = a;
 			}
-			pcNext += 2;
+			pcNext += 1;
 			break;
 //ADD
 		case ADD:
@@ -95,12 +97,12 @@ void execute(Byte* byteStream, PCType* length){
 			case 0: // two registers
 				a = access_register(byteStream[pc + 1], &registerFile);
 				b = access_register(byteStream[pc + 2], &registerFile);
-				pcNext += 3;
+				pcNext += 2;
 				break;
 			case 1: // one register and a constant
 				a = access_register(byteStream[pc + 1], &registerFile);
 				b = fetch_data(&byteStream[pc + 2]);
-				pcNext += 2 + DATA_OBJECT_SIZE;
+				pcNext += 1 + DATA_OBJECT_SIZE;
 				break;
 			}
 			
@@ -125,6 +127,7 @@ void execute(Byte* byteStream, PCType* length){
 			break;
 //BRANCH
 		case BRANCH:
+			pcNext += 1 + sizeof(PCType);
 			// check given register
 			if (read_bool_direct(&byteStream[pc + 1])){
 				
@@ -132,8 +135,8 @@ void execute(Byte* byteStream, PCType* length){
 				case 1: // linked branch
 					{
 					// get to next instruction
-					PCType tmp = pc + 2 + DATA_OBJECT_SIZE;
-					push_pc(&tmp, &registerFile);
+					///PCType tmp = pcNext + 1 + sizeof(PCType);
+					push_pc(&pcNext, &registerFile);
 					}
 					// fall into default
 				default:
@@ -148,9 +151,10 @@ void execute(Byte* byteStream, PCType* length){
 					break;
 					}
 				}
-			}else{
-				pcNext = pc + 1 + sizeof(PCType);
 			}
+			///else{
+			///	pcNext += 1 + sizeof(PCType);
+			///}
 			
 			pc = pcNext;
 			continue;
@@ -177,12 +181,13 @@ void execute(Byte* byteStream, PCType* length){
 			break;
 //JUMP
 		case JUMP:
+			pcNext += sizeof(PCType);
 			switch(funct){
 			case 1: // linked jump
 				{
 				// get to next instruction
-				PCType tmp = pc + 1 + sizeof(PCType);
-				push_pc(&tmp, &registerFile);
+				///PCType tmp = pcNext + sizeof(PCType);
+				push_pc(&pcNext, &registerFile);
 				}
 				// fall into default
 			default:
@@ -206,7 +211,7 @@ void execute(Byte* byteStream, PCType* length){
 			switch(funct){
 			case 0: // load a normal constant
 				r = fetch_data(&byteStream[pc + 1]);
-				pcNext += 1 + DATA_OBJECT_SIZE;
+				pcNext += DATA_OBJECT_SIZE;
 				break;
 			case 1: // load a string constant
 				// read next two bytes as high and low of the constant's id
@@ -217,11 +222,11 @@ void execute(Byte* byteStream, PCType* length){
 				
 				tmpReturn.type = STRING;
 				tmpReturn.data.s = metaData.stringHeads[stringID];
-				tmpReturn.aux[0] == metaData.stringLengs[stringID] >> 8;
-				tmpReturn.aux[1] == metaData.stringLengs[stringID] & 0xFF;
+				tmpReturn.aux[0] = metaData.stringLens[stringID] >> 8;
+				tmpReturn.aux[1] = metaData.stringLens[stringID] & 0xFF;
 				r = &tmpReturn;
 				
-				pcNext += 3;
+				pcNext += 2;
 				}
 				break;
 			}
@@ -235,8 +240,8 @@ void execute(Byte* byteStream, PCType* length){
 			break;
 //MALLOC
 		case MALLOC:
-			a = access_register(byteStream[pc + 1]);
-			b = access_register(byteStream[pc + 2]);
+			a = access_register(byteStream[pc + 1], &registerFile);
+			b = access_register(byteStream[pc + 2], &registerFile);
 			
 			tmpReturn.type = POINTER;
 			
@@ -245,7 +250,7 @@ void execute(Byte* byteStream, PCType* length){
 				tmpReturn.data.p = malloc(DATA_OBJECT_SIZE * b->data.n);
 				break;
 			case 1:
-				switch(a->data.type){
+				switch(a->type){
 				case INTEGER:
 					tmpReturn.data.p = malloc(sizeof(IntegerType) * b->data.n);
 					break;
@@ -268,18 +273,18 @@ void execute(Byte* byteStream, PCType* length){
 				break;
 			}
 			
-			pcNext += 3;
+			pcNext += 2;
 			
 			break;
 //MFREE			
 		case MFREE:
-			a = access_register(byteStream[pc + 1]);
+			a = access_register(byteStream[pc + 1], &registerFile);
 			
 			switch(funct){
 			case 0: 
 				free(a->data.p);
 				break;
-			case 1:
+			case 1: // subfunction to be used for reference-counting garbage collection
 				// check aux bytes
 				if (0){
 					free (a->data.p);
@@ -287,12 +292,14 @@ void execute(Byte* byteStream, PCType* length){
 				break;
 			}
 			
-			pcNext += 2;
+			pcNext += 1;
 			
 			break;
 //MLOAD
 		case MLOAD:
 			a = access_register(byteStream[pc + 1], &registerFile);
+			
+			pcNext += 1;
 			
 			
 			offset = 0;
@@ -303,22 +310,22 @@ void execute(Byte* byteStream, PCType* length){
 				b = access_register(byteStream[pc + 2], &registerFile);
 				offset = b->data.n;
 				
-				pcNext = pc + 1;
+				pcNext += 1;
+				
 				// no break, fall into next case
 				case 0:  // load Data_Object to r
 			
-				// way to make compiler know real offset by pointer type?
 				finalAddress = ((Data_Object*) a->data.p) + offset; // "a->data.p + b->data.n" if fallen into
 				
 				r = (Data_Object*) finalAddress;
-				pcNext += 2; // "pcNext = pc + 3" if fallen into, "pcNext = pc + 2" otherwise
+				///pcNext += 2; // "pcNext = pc + 3" if fallen into, "pcNext = pc + 2" otherwise
 				break;
 				
 			case 3: // pure data load with offset
 				b = access_register(byteStream[pc + 2], &registerFile);
 				offset = b->data.n;
 				
-				pcNext = pc + 1;
+				pcNext += 1;
 				//no break, fall into next case
 				case 2: // pure data load
 				clear_data(&tmpReturn);
@@ -352,7 +359,7 @@ void execute(Byte* byteStream, PCType* length){
 				}
 				
 				r = &tmpReturn;
-				pcNext += 3; // "pcNext = pc + 4" if fallen into, "pcNext = pc + 3" otherwise
+				///pcNext += 3; // "pcNext = pc + 4" if fallen into, "pcNext = pc + 3" otherwise
 				
 				break;
 			}
@@ -362,6 +369,8 @@ void execute(Byte* byteStream, PCType* length){
 			break;
 //MOVE
 		case MOVE:
+			r = access_register(pc + 1, &registerFile); // registerO
+			pcNext += 1;
 			break;
 //MUL
 		case MUL:
@@ -376,23 +385,25 @@ void execute(Byte* byteStream, PCType* length){
 			
 			a = access_register(pc + 1, &registerFile); // registerP
 			b = access_register(pc + 2, &registerFile); // registerV
+			
+			pcNext += 2;
 		
 			switch(funct){
 			case 1:
 				offset = fetch_data(&byteStream[pc + 3])->data.n;
-				pcNext = pc + 1;
+				pcNext += 1;
 				
 				// no break, fall into next case
 				case 0:
 				
 				// write
 				*((Data_Object*) finalAddress) = *b;
-				pcNext += 3;
 				
 				break;
 			case 3:
 				offset = fetch_data(&byteStream[pc + 3])->data.n;
-				pcNext = pc + 1;
+				
+				pcNext += 1;
 				
 				// no break, fall into next case
 				case 2:
@@ -420,7 +431,6 @@ void execute(Byte* byteStream, PCType* length){
 					*((void**) finalAddress) = b->data.p;
 					break;
 				}
-				pcNext += 3;
 				
 				break;
 			}
@@ -436,13 +446,13 @@ void execute(Byte* byteStream, PCType* length){
 		case POPFRAME:
 			--registerFile.depth;
 			
-			++pc;
+			pc = pcNext;
 			continue;
 //PUSHFRAME
 		case PUSHFRAME:
 			++registerFile.depth;
 			
-			++pc;
+			pc = pcNext;
 			continue;
 //POW
 		case POW:
@@ -453,16 +463,16 @@ void execute(Byte* byteStream, PCType* length){
 			switch(funct){
 			case 0: // print register
 				a = access_register(byteStream[pc + 1], &registerFile);
-				pcNext = pc + 2;
+				pcNext += 1;
 				break;
 			case 1: // print constant object
 				a = fetch_data(&byteStream[pc + 1]);
-				pcNext = pc + 1 + DATA_OBJECT_SIZE;
+				pcNext += DATA_OBJECT_SIZE;
 				break;
 			case 2: // only printing a newline character, no arguments
 				printf("\n");
 				
-				++pc;
+				pc = pcNext;
 				continue;
 			}
 			
@@ -500,7 +510,7 @@ void execute(Byte* byteStream, PCType* length){
 //SETDO
 		case SETDO:
 			registerFile.defaultOutput = byteStream[pc + 1];
-			pcNext = pc + 2;
+			pcNext += 1;
 			
 			pc = pcNext;
 			continue;
@@ -531,11 +541,11 @@ void execute(Byte* byteStream, PCType* length){
 // BYTESTREAM MANIPULATION
 //==========================================================
 
-Data_Object* fetch_data(Byte* rawBytes){
+const Data_Object* fetch_data(const Byte* rawBytes){
 	return (Data_Object*) rawBytes;
 }
 
-Data_Object read_bytes(Byte* rawBytes){
+Data_Object read_bytes(const Byte* rawBytes){
 	union{Data_Object asObject; Byte asBytes[DATA_OBJECT_SIZE];} castUnion;
 	for (unsigned int i = 0; i < DATA_OBJECT_SIZE; i++){
 		castUnion.asBytes[i] = rawBytes[i];
@@ -544,12 +554,12 @@ Data_Object read_bytes(Byte* rawBytes){
 	return castUnion.asObject;
 }
 
-Byte read_bool_direct(Byte* rawBytes){
+Byte read_bool_direct(const Byte* rawBytes){
 	// DATA_OBJECT: <<Bddddddd><tttt><____>>
 	return rawBytes[0];
 }
 
-IntegerType read_integer_direct(Byte* rawBytes){
+IntegerType read_integer_direct(const Byte* rawBytes){
 	union {signed long asLong; Byte asBytes[8];} castUnion;
 	
 	for (unsigned int i = 0; i < 8; ++i){
@@ -559,7 +569,7 @@ IntegerType read_integer_direct(Byte* rawBytes){
 	return castUnion.asLong;
 }
 
-RationalType read_double_direct(Byte* rawBytes){
+RationalType read_double_direct(const Byte* rawBytes){
 	union {RationalType asDouble; Byte asBytes[8];} castUnion;
 	
 	for (unsigned char i = 0; i < 8; ++i){
@@ -569,7 +579,7 @@ RationalType read_double_direct(Byte* rawBytes){
 	return castUnion.asDouble;
 }
 
-PCType read_address_literal(Byte* rawBytes){
+PCType read_address_literal(const Byte* rawBytes){
 	union{PCType asLong; Byte asBytes[sizeof(PCType)];} castUnion;
 	for (unsigned char i = 0; i < sizeof(PCType); i++){
 		castUnion.asBytes[i] = rawBytes[i];
@@ -655,7 +665,7 @@ Data_Object* access_register(Byte reg, Register_File* rf){
 	return &(rf->registers[reg][depth]);
 }
 
-void write_default_output(Data_Object* object, Register_File* rf){
+void write_default_output(const Data_Object* object, Register_File* rf){
 	*access_register(rf->defaultOutput, rf) = *object;
 }
 
@@ -673,7 +683,7 @@ PCType pop_pc(Register_File* rf){
 // METADATA FUNCTIONS
 //==========================================================
 
-PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData){
+PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* metaData){
 	PCType pc = 0;
 	
 	unsigned int stringLength;
@@ -681,6 +691,7 @@ PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData
 	unsigned int nstrings;
 	
 	while (pc < *length && byteStream[pc] != META_END){
+		printf("meta byte\n");
 		switch(byteStream[pc]){
 		case META_BEGIN:
 			pc += 1;
@@ -729,7 +740,7 @@ PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData
 			// allocate memory for strings
 			metaData->nstrings = nstrings;
 			metaData->stringHeads = (char**) malloc(sizeof(char*) * nstrings);
-			metaData->stringLens = (char**) malloc(sizeof(unsigned int) * nstrings);
+			metaData->stringLens = (unsigned int*) malloc(sizeof(unsigned int) * nstrings);
 			
 			// move pc to next metadata
 			pc += 3;
@@ -741,6 +752,7 @@ PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData
 		}
 	}
 	
-	// should not reach here
-	return 0;
+	printf("about to return a pc of %ld", pc);
+	
+	return pc + 1;
 }

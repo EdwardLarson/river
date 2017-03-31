@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #define WWHEEL_VERSION_MAIN	0
-#define WWHEEL_VERSION_SUB	1
+#define WWHEEL_VERSION_SUB	2
 
 #define REGISTER_NODE_SIZE 512
 #define DATA_OBJECT_SIZE 16
@@ -148,16 +148,16 @@ typedef struct {
 // VM FUNCTIONS
 //==========================================================
 
-void execute(Byte* byteStream, PCType* length);
-PCType read_metadata(const Byte* byteStream, PCType* length, Meta_Data* metaData);
+void execute(const Byte* byteStream, const PCType* length);
+PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* metaData);
 
 // Bytestream manipulation
-inline Data_Object*	fetch_data(Byte* rawBytes);
-Data_Object 		read_bytes(Byte* rawBytes);
-Byte 				read_bool_direct(Byte* rawBegin);
-IntegerType 		read_integer_direct(Byte* rawBegin);
-RationalType 		read_double_direct(Byte* rawBegin);
-PCType 				read_address_literal(Byte* rawBytes);
+inline const Data_Object*	fetch_data(const Byte* rawBytes);
+Data_Object 				read_bytes(const Byte* rawBytes);
+Byte 						read_bool_direct(const Byte* rawBegin);
+IntegerType 				read_integer_direct(const Byte* rawBegin);
+RationalType 				read_double_direct(const Byte* rawBegin);
+PCType 						read_address_literal(const Byte* rawBytes);
 
 // Data_Object manipulation
 Data_Object create_object_INTEGER(IntegerType n);
@@ -169,7 +169,7 @@ char* get_object_cstring(Data_Object* stringObject);
 // Register file functions
 void initialize_register_file(Register_File* rFile);
 Data_Object* access_register(Byte reg, Register_File* rf);
-void write_default_output(Data_Object* object, Register_File* rf);
+void write_default_output(const Data_Object* object, Register_File* rf);
 void push_pc(PCType* pc_entry, Register_File* rf);
 PCType pop_pc(Register_File* rf);
 

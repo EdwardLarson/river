@@ -20,17 +20,12 @@ int main(int argc, char** argv){
 		std::cout << "Unable to open " << argv[1] << " for reading" << std::endl;
 	}
 	
-	std::vector<Byte> byteVec;
-	
-	Assembler assembler(inStream, &byteVec);
+	Assembler assembler(inStream);
 	
 	if (assembler.assemble()){
-		//Byte* bytes;
-		PCType progLength = (PCType) byteVec.size();
-		
-		std::cout << "Assembled " << progLength << " bytes, starting VM" << std::endl;
-		
-		execute(&(byteVec[0]), &progLength);
+		PCType progLength = (PCType) assembler.get_bytecode().size();
+		const Byte* bytecodeBegin = &(assembler.get_bytecode()[0]);
+		execute(bytecodeBegin, &progLength);
 	}
 	
 	

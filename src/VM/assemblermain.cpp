@@ -14,26 +14,25 @@ int main(int argc, char** argv){
 		std::cerr << "Unable to open file " << argv[2] << " for writing!" << std::endl;
 	}else{
 		Assembler a(inStream);
-		a.assemble();
+		if (a.assemble()){
+			std::cout << std::hex;
 		
-		std::cout << std::hex;
-		
-		for (std::vector<Byte>::const_iterator iter = a.get_bytecode().begin(); iter != a.get_bytecode().end(); ++iter){
-			outStream << (*iter);
-			std::cout << int (*iter) << std::endl;
-		}
+			for (std::vector<Byte>::const_iterator iter = a.get_bytecode().begin(); iter != a.get_bytecode().end(); ++iter){
+				outStream << (*iter);
+				std::cout << int (*iter) << std::endl;
+			}
 		
 		std::cout << std::dec;
 		
-		std::cout << std::dec << "Wrote " << (outStream.tellp() * sizeof(Byte)) << " bytes to " << argv[2] << std::endl;
-		
-		
+		std::cout << std::dec << "Wrote " << (a.get_bytecode().size() * sizeof(Byte)) << " bytes to " << argv[2] << std::endl;
+			
+		}else{
+			std::cout << "assembly failed, aborting" << std::endl;
+		}
 		
 		outStream.close();
 		inStream.close();
 	}
-	
-	std::cout << "before end" << std::endl;
 	
 	return 0;
 }
