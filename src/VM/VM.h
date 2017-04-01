@@ -16,12 +16,12 @@
 #define NUM_REGISTERS 256
 #define NUM_PERSISTENT_REGISTERS 32
 
-#define META_BEGIN		0x00
-#define META_END		0x01
-#define META_VERSION	0x02
-#define META_STRING		0x03
-#define META_NSTRING	0x04
-#define META_CHECKSUM	0x05
+#define META_BEGIN		0xf0
+#define META_END		0xf1
+#define META_VERSION	0xf2
+#define META_STRING		0xf3
+#define META_NSTRING	0xf4
+#define META_CHECKSUM	0xf5
 
 #define UNION_CAST(x, destType) \
 	(((union {__typeof__(x) a; destType b;})x).b)
@@ -37,38 +37,38 @@ OPCODES
 Opcodes for the atomic operations this virtual machine supports
 */
 typedef enum _OPCODE{
-	ABS,
-	ADD,
-	AND,
-	BRANCH,
-	CALL,
-	DIV,
-	EQ,
-	GT,
-	HALT,
-	INPUT,
-	JUMP,
-	LOAD,
-	LSH,
-	LT,
-	MALLOC,
-	MFREE,
-	MLOAD,
-	MOD,
-	MOVE,
-	MSTORE,
-	MUL,
-	NOT, // a bitwise inversion (~), the logical operator (!) can be found by BRANCH
-	OR,
-	POPFRAME,
-	PUSHFRAME,
-	POW,
-	PRINT,
-	RETURN,
-	RSH,
-	SETDO,
-	SUB,
-	XOR
+/* 0*/	ABS,
+/* 1*/	ADD,
+/* 2*/	AND,
+/* 3*/	BRANCH,
+/* 4*/	CALL,
+/* 5*/	DIV,
+/* 6*/	EQ,
+/* 7*/	GT,
+/* 8*/	HALT,
+/* 9*/	INPUT,
+/*10*/	JUMP,
+/*11*/	LOAD,
+/*12*/	LSH,
+/*13*/	LT,
+/*14*/	MALLOC,
+/*15*/	MFREE,
+/*16*/	MLOAD,
+/*17*/	MOD,
+/*18*/	MOVE,
+/*19*/	MSTORE,
+/*20*/	MUL,
+/*21*/	NOT, // a bitwise inversion (~), the logical operator (!) can be found by BRANCH
+/*22*/	OR,
+/*23*/	POPFRAME,
+/*24*/	PUSHFRAME,
+/*25*/	POW,
+/*26*/	PRINT,
+/*27*/	RETURN,
+/*28*/	RSH,
+/*29*/	SETDO,
+/*30*/	SUB,
+/*31*/	XOR
 } OPCODE;
 
 /*

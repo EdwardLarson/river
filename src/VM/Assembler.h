@@ -21,7 +21,7 @@
 * argument delimiters
 * '$' : register
 * '#' : persistent register
-* future implementation: ':' for labels
+* ':' for labels
 * 
 * sample assembly
 * sum digits 1-10 and print the results
@@ -83,22 +83,29 @@ private:
 	Byte nextFreePersistent;
 	std::stack<Byte> freeStack;
 	
-	void write_byte(Byte b);
+	//FUNCTIONS
+	
+	// assembler state functions
+	Byte get_register(const std::string& identifier, bool persistent=false);
 	void define_label(const std::string& label);
 	void add_label_ref(const std::string& label);
-	
-	Byte get_register(const std::string& identifier, bool persistent=false);
 	void push_frame();
 	void pop_frame();
 	
+	// output/writing functions
+	void write_byte(Byte b);
 	void assemble_instruction(const std::string& instruction);
-	Byte read_opcode(const std::string& instruction, unsigned int& index, char& subfunction);
-	void read_args(const std::string& instruction, unsigned int& index, std::vector<Argument>& args);
-	Argument read_argument(const std::string& instruction, unsigned int& index);
-	Byte read_returns(const std::string& instruction, unsigned int& index, Byte& returnReg);
-	Data_Object read_literal(const std::string& literal);
 	void assemble_argument(const Argument& arg);
+	void assemble_labels();
 	
+	// input/reading functions
+	Byte 					read_opcode(const std::string& instruction, unsigned int& index, char& subfunction);
+	std::vector<Argument>	read_args(const std::string& instruction, unsigned int& index);
+	Argument 				read_argument(const std::string& instruction, unsigned int& index);
+	Byte 					read_returns(const std::string& instruction, unsigned int& index, Byte& returnReg);
+	Data_Object 			read_literal(const std::string& literal);
+	
+	// utility functions
 	Byte get_opcode_hex(std::string& opcode) const;
 	Byte get_funct(Byte opcodeShifted, std::vector<Argument> args, char subfunction);
 	unsigned int char_to_int(char c);

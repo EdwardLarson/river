@@ -35,8 +35,12 @@ bool Assembler::assemble(){
 	
 	
 	std::string line;
-	while (std::getline(inStream, line)){ // crashes with a segfault
 	
+	while (std::getline(inStream, line)){
+		// remove '\r' from line
+		if (*line.rbegin() == '\r'){
+			line.erase(line.size() - 1, 1);
+		}
 		assemble_instruction(line);
 		
 		switch(error){
@@ -66,95 +70,20 @@ bool Assembler::assemble(){
 	}
 	
 	// go back and fill in labels
-	for (LabelMap::const_iterator currentLabel = labelMap.begin(); currentLabel != labelMap.end(); ++currentLabel){
-		for (std::list<PCType>::const_iterator currentReference = currentLabel->second.second.begin(); currentReference != currentLabel->second.second.end(); ++currentReference){
-			// cast label's address to bytes using a cast union
-			union {PCType asAddress; Byte asBytes[sizeof(PCType)];} castUnion;
-			castUnion.asAddress = currentLabel->second.first;
-			
-			// write each byte of address to this reference location
-			for (unsigned int i = 0; i < sizeof(PCType); i++){
-				byteVec[*currentReference + i] = castUnion.asBytes[i];
-			}
-			
-					std::cout << "wrote a reference to " << currentLabel->first << '(' << currentLabel->second.first << ") at " << *currentReference << std::endl; ///DEBUG
-		}
-	}
+	assemble_labels();
 	
 	std::cout << "file assembly successful" << std::endl;
 	
 	return true;
 }
 
-void Assembler::assemble_instruction(const std::string& instruction){
-	unsigned int index = 0;
-	
-	std::cout << std::hex;
-	
-			std::cout << "instruction: " << instruction << std::endl; ///DEBUG 
-	
-	// check if line is a label
-	if (instruction[0] == ':'){
-		
-				std::cout << "line is label" << std::endl; ///DEBUG
-		
-		std::string label = "";
-		for (unsigned int i = 1; i < instruction.length(); i++){
-			if (instruction[i] == ';'){
-				return;
-			}else if(instruction[i] == ':' && label.length() > 0){ // allows for multiple labels per line, e.g. "LOOP1:LOOP2:RESTART"
-				define_label(label);
-				label = "";
-			}else{
-				label += instruction[i];
-				}
-		}
-		if (label.length() > 0){
-			define_label(label);
-		}
-		
-		return;
-	}
-	
-	char subfunction = ' ';
-	Byte opcode = read_opcode(instruction, index, subfunction);
-	
-			std::cout << "opcode: " << (int) opcode << std::endl; ///DEBUG 
-	
-	std::vector<Argument> args;
-	read_args(instruction, index, args);
-	
-			std::cout << "checkpoint: args read" << std::endl; ///DEBUG 
-	
-	Byte funct = get_funct(opcode, args, subfunction);
-	
-			std::cout << "funct: " << (int) funct << std::endl; ///DEBUG 
-	
-	Byte returnReg = 0;
-	Byte returnBit = read_returns(instruction, index, returnReg);
-	
-			std::cout << "return bit: " << (int) returnBit << std::endl; ///DEBUG 
-	
-	// compile full opcode and output
-	// opcode format: <rooo-ooff>
-	Byte fullOpcode = returnBit | opcode | funct;
-	
-			std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
-	
-			std::cout << "\n\tInstruction {" << instruction << "} written at " << byteVec.size() << std::endl << std::endl;
-	write_byte(fullOpcode);
-	
-	// compile arguments into bytes and output
-	for (unsigned int i = 0; i < args.size(); i++){
-		assemble_argument(args[i]);
-	}
-	
-	// add return argument to tail of instruction
-	if (returnBit){
-		write_byte(returnReg);
-	}
-}
+//==========================================================
+// ASSEMBLER STATE
+//==========================================================
 
+// get_register: Looks up the register mapped to a given 
+// identifier. If none exists, creates a new mapping. Returns
+// the register number.
 Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
 	
 	if (isPersistent){
@@ -205,6 +134,53 @@ Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
 	}
 }
 
+// define_label: Maps a label to a location in the program
+void Assembler::define_label(const std::string& label){
+	LabelMap::iterator search = labelMap.find(label);
+	
+	if (search == labelMap.end()){
+		// create a new label pairing between label location and references
+		std::pair<PCType, std::list<PCType> > locAndRefs;
+		locAndRefs.first = byteVec.size();
+		
+		labelMap[label] = locAndRefs;
+		
+		std::cout << "\tDEFINED label " << label << " to " << byteVec.size() << std::endl; ///DEBUG
+	}else{
+		// set this label's location to the next byte (next instruction) which will be written
+		search->second // std::pair<PCType, std::list<PCType>>
+			.first // PCType
+				= byteVec.size();
+				
+		std::cout << "\tREDEFINED label " << label << " to " << byteVec.size() << std::endl; /// DEBUG
+	}
+}
+
+// add_label_ref: Stores an entry for a location that a
+// label is used at.
+void Assembler::add_label_ref(const std::string& label){
+	LabelMap::iterator search = labelMap.find(label);
+	
+	if (search == labelMap.end()){
+		// create a new label pairing between label location and references
+		std::pair<PCType, std::list<PCType> > locAndRefs;
+		locAndRefs.second.push_back(byteVec.size());
+		
+		labelMap[label] = locAndRefs;
+	}else{
+		// add a reference to this label at the next-written byte
+		search->second // std::pair<PCType, std::list<PCType>>
+			.second // std::list<PCType>
+				.push_back(byteVec.size());
+				
+		
+	}
+	
+	std::cout << "\tREFERENCED " << label << " at " << byteVec.size() << std::endl; /// DEBUG
+}
+
+// push_frame: Creates a new set of dynamic mappings which
+// the VM will use in a new frame context
 void Assembler::push_frame(){
 	mappingStack.push(mapping);
 	mapping.clear();
@@ -212,6 +188,8 @@ void Assembler::push_frame(){
 	nextFree = 0;
 }
 
+// pop_frame: Pops the last set of dynamic mappings which
+// the VM will use when returning to a previous frame context
 void Assembler::pop_frame(){
 	mapping = mappingStack.top();
 	mappingStack.pop();
@@ -220,6 +198,150 @@ void Assembler::pop_frame(){
 	freeStack.pop();
 }
 
+//==========================================================
+// OUTPUT/WRITING
+//==========================================================
+
+// write_byte: Writes a byte to output
+void Assembler::write_byte(Byte b){
+	byteVec.push_back(b);
+}
+
+// assemble_instruction: Processes a single assembly 
+// instruction (one line of file) into bytecode and writes
+// to the output
+void Assembler::assemble_instruction(const std::string& instruction){
+	unsigned int index = 0;
+	
+	std::cout << std::hex;
+	
+			std::cout << "instruction: " << instruction << std::endl; ///DEBUG 
+	
+	// check if line is a label
+	if (instruction[0] == ':'){
+		
+				std::cout << "line is label" << std::endl; ///DEBUG
+		
+		std::string label = "";
+		for (unsigned int i = 1; i < instruction.length(); i++){
+			if (instruction[i] == ';'){
+				return;
+			}else if(instruction[i] == ':' && label.length() > 0){ // allows for multiple labels per line, e.g. "LOOP1:LOOP2:RESTART"
+				define_label(label);
+				label = "";
+			}else{
+				label += instruction[i];
+			}
+		}
+		if (label.length() > 0){
+			define_label(label);
+		}
+		
+		return;
+	}
+	
+	char subfunction = ' ';
+	Byte opcode = read_opcode(instruction, index, subfunction);
+	
+			std::cout << "opcode: " << (int) opcode << std::endl; ///DEBUG 
+	
+	std::vector<Argument> args = read_args(instruction, index);
+	
+			std::cout << "checkpoint: args read" << std::endl; ///DEBUG 
+	
+	Byte funct = get_funct(opcode, args, subfunction);
+	
+			std::cout << "funct: " << (int) funct << std::endl; ///DEBUG 
+	
+	Byte returnReg = 0;
+	Byte returnBit = read_returns(instruction, index, returnReg);
+	
+			std::cout << "return bit: " << (int) returnBit << std::endl; ///DEBUG 
+	
+	// compile full opcode and output
+	// opcode format: <rooo-ooff>
+	Byte fullOpcode = returnBit | opcode | funct;
+	
+			std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
+	
+			std::cout << "\n\tInstruction {" << instruction << "} written at " << byteVec.size() << std::endl << std::endl;
+	write_byte(fullOpcode);
+	
+	// compile arguments into bytes and output
+	for (unsigned int i = 0; i < args.size(); i++){
+		assemble_argument(args[i]);
+	}
+	
+	// add return argument to tail of instruction
+	if (returnBit){
+		write_byte(returnReg);
+	}
+}
+
+// assemble_argument: Writes to output the bytecode for a
+// single assembly argument (e.g. as a literal Data_Object)
+// or a register number
+void Assembler::assemble_argument(const Argument& arg){
+	if (arg.type == A_VALUE){
+		Data_Object_Cast_Union castUnion;
+		castUnion.data = read_literal(arg.arg);
+		
+		std::cout << "created Data_Object {type=" << castUnion.data.type << ", data=" << castUnion.data.data.n << "} for literal " << arg.arg << std::endl; ///DEBUG
+		
+		for (unsigned int i = 0; i < DATA_OBJECT_SIZE; i++){
+			write_byte(castUnion.bytes[i]);
+		}
+		
+	}else if (arg.type == A_REGISTER){
+		Byte reg = get_register(arg.arg);
+		
+		if (error != AERROR_REGLIMIT){
+			std::cout << "\tsuccessfully mapped " << arg.arg << " to register " << (int) reg << std::endl; /// DEBUG
+			write_byte(reg);
+		}
+	}else if(arg.type == A_REGISTER_P){
+		Byte reg = get_register(arg.arg, true);
+		if (error != AERROR_REGLIMIT){
+			std::cout << "\tsuccessfully mapped " << arg.arg << " to persistent register " << (int) reg << std::endl; /// DEBUG
+			write_byte(reg);
+		}
+	}else if (arg.type == A_LABEL){
+		// store the location that this reference is used
+		// that is, the location of where the first byte will be written to in loop
+		add_label_ref(arg.arg);
+		// write blank bytes where address literal will go
+		for (unsigned int i = 0; i < sizeof(PCType); i++){
+			write_byte(0x00);
+		}
+	}
+}
+
+// assemble_labels: Goes to the location where each label is 
+// referenced and fills in the actual bytecode address for that
+// label
+void Assembler::assemble_labels(){
+	// will cast label's address to bytes using a cast union
+	union {PCType asAddress; Byte asBytes[sizeof(PCType)];} castUnion;
+	for (LabelMap::const_iterator currentLabel = labelMap.begin(); currentLabel != labelMap.end(); ++currentLabel){
+		for (std::list<PCType>::const_iterator currentReference = currentLabel->second.second.begin(); currentReference != currentLabel->second.second.end(); ++currentReference){
+			castUnion.asAddress = currentLabel->second.first;
+			
+			// write each byte of address to this reference location
+			for (unsigned int i = 0; i < sizeof(PCType); i++){
+				byteVec[*currentReference + i] = castUnion.asBytes[i];
+			}
+			
+					std::cout << "wrote a reference to " << currentLabel->first << '(' << currentLabel->second.first << ") at " << *currentReference << std::endl; ///DEBUG
+		}
+	}
+}
+
+//==========================================================
+// INPUT/READING
+//==========================================================
+
+// read_opcode: Read an assembly opcode from an instruction.
+// Returns the byte opcode without correct returnBit or funct bits
 Byte Assembler::read_opcode(const std::string& instruction, unsigned int& index, char& subfunction){
 	std::string opcodeRaw = "";
 	
@@ -241,7 +363,11 @@ Byte Assembler::read_opcode(const std::string& instruction, unsigned int& index,
 	return opcode;
 }
 
-void Assembler::read_args(const std::string& instruction, unsigned int& index, std::vector<Argument>& args){
+// read_args: Read an instruction's assembly arguments, tagging
+// each one with a type. Returns a vector of tagged arguments
+std::vector<Assembler::Argument> Assembler::read_args(const std::string& instruction, unsigned int& index){
+	std::vector<Argument> args;
+	
 	while (index < instruction.length() && instruction[index] != '>'){
 		
 		if (instruction[index] != ' '){
@@ -250,8 +376,12 @@ void Assembler::read_args(const std::string& instruction, unsigned int& index, s
 		
 		++index;
 	}
+	
+	return args;
 }
 
+// read_argument: Read an assembly argument and give it a type.
+// Returns the argument tagge with a type
 Assembler::Argument Assembler::read_argument(const std::string& instruction, unsigned int& index){
 	Argument argument;
 	
@@ -296,6 +426,9 @@ Assembler::Argument Assembler::read_argument(const std::string& instruction, uns
 	return argument;
 }
 
+// read_returns: Reads the last part of an assembly instruction
+// to determine what the return type is. Returns a byte 
+// containing the correct returnBit
 Byte Assembler::read_returns(const std::string& instruction, unsigned int& index, Byte& returnReg){
 	// iterate index to the beginning of the argument
 	for (; index < instruction.length() && (instruction[index] == ' ' || instruction[index] == '>'); ++index){
@@ -323,6 +456,8 @@ Byte Assembler::read_returns(const std::string& instruction, unsigned int& index
 	return 0x80;
 }
 
+// read_literal: Reads a literal numerical value from an 
+// instruction. Returns a Data_Object wrapping the value.
 Data_Object Assembler::read_literal(const std::string& literal){
 	Data_Object object;
 	object.type = INTEGER;
@@ -371,86 +506,9 @@ Data_Object Assembler::read_literal(const std::string& literal){
 	return object;
 }
 
-void Assembler::assemble_argument(const Argument& arg){
-	if (arg.type == A_VALUE){
-		Data_Object_Cast_Union castUnion;
-		castUnion.data = read_literal(arg.arg);
-		
-		std::cout << "created Data_Object {type=" << castUnion.data.type << ", data=" << castUnion.data.data.n << "} for literal " << arg.arg << std::endl; ///DEBUG
-		
-		for (unsigned int i = 0; i < DATA_OBJECT_SIZE; i++){
-			write_byte(castUnion.bytes[i]);
-		}
-		
-	}else if (arg.type == A_REGISTER){
-		Byte reg = get_register(arg.arg);
-		
-		if (error != AERROR_REGLIMIT){
-			std::cout << "\tsuccessfully mapped " << arg.arg << " to register " << (int) reg << std::endl; /// DEBUG
-			write_byte(reg);
-		}
-	}else if(arg.type == A_REGISTER_P){
-		Byte reg = get_register(arg.arg, true);
-		if (error != AERROR_REGLIMIT){
-			std::cout << "\tsuccessfully mapped " << arg.arg << " to persistent register " << (int) reg << std::endl; /// DEBUG
-			write_byte(reg);
-		}
-	}else if (arg.type == A_LABEL){
-		// store the location that this reference is used
-		// that is, the location of where the first byte will be written to in loop
-		add_label_ref(arg.arg);
-		// write blank bytes where address literal will go
-		for (unsigned int i = 0; i < sizeof(PCType); i++){
-			write_byte(0x00);
-		}
-	}
-}
-
-void Assembler::write_byte(Byte b){
-	byteVec.push_back(b);
-}
-
-void Assembler::define_label(const std::string& label){
-	LabelMap::iterator search = labelMap.find(label);
-	
-	if (search == labelMap.end()){
-		// create a new label pairing between label location and references
-		std::pair<PCType, std::list<PCType> > locAndRefs;
-		locAndRefs.first = byteVec.size();
-		
-		labelMap[label] = locAndRefs;
-		
-		std::cout << "\tDEFINED label " << label << " to " << byteVec.size() << std::endl; ///DEBUG
-	}else{
-		// set this label's location to the next byte (next instruction) which will be written
-		search->second // std::pair<PCType, std::list<PCType>>
-			.first // PCType
-				= byteVec.size();
-				
-		std::cout << "\tREDEFINED label " << label << " to " << byteVec.size() << std::endl; /// DEBUG
-	}
-}
-
-void Assembler::add_label_ref(const std::string& label){
-	LabelMap::iterator search = labelMap.find(label);
-	
-	if (search == labelMap.end()){
-		// create a new label pairing between label location and references
-		std::pair<PCType, std::list<PCType> > locAndRefs;
-		locAndRefs.second.push_back(byteVec.size());
-		
-		labelMap[label] = locAndRefs;
-	}else{
-		// add a reference to this label at the next-written byte
-		search->second // std::pair<PCType, std::list<PCType>>
-			.second // std::list<PCType>
-				.push_back(byteVec.size());
-				
-		
-	}
-	
-	std::cout << "\tREFERENCED " << label << " at " << byteVec.size() << std::endl; /// DEBUG
-}
+//==========================================================
+// UTILITY
+//==========================================================
 
 Byte Assembler::get_opcode_hex(std::string& opcode) const{
 		

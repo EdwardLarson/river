@@ -655,6 +655,7 @@ void initialize_register_file(Register_File* rFile){
 	Data_Object zeroObject = create_object_INTEGER(0);
 	
 	rFile->registers[NUM_REGISTERS - NUM_PERSISTENT_REGISTERS][0] = zeroObject;
+	rFile->pcTop = 0;
 }
 
 Data_Object* access_register(Byte reg, Register_File* rf){
@@ -670,13 +671,23 @@ void write_default_output(const Data_Object* object, Register_File* rf){
 }
 
 void push_pc(PCType* pc_entry, Register_File* rf){
-	++rf->pcTop; //TO-DO: bounds checking
-	rf->pcStack[rf->pcTop] = *pc_entry;
+	if (rf->pcTop < PC_STACK_SIZE - 1){
+		printf("enough space\n"); ///DEBUG
+		++(rf->pcTop);
+		rf->pcStack[rf->pcTop] = *pc_entry;
+	}else{
+		printf("ERROR: pc stack overflow!\n");
+	}
 }
 
 PCType pop_pc(Register_File* rf){
-	--rf->pcTop; //TO-DO: bounds checking
-	return rf->pcStack[rf->pcTop + 1];
+	if (rf->pcTop > 0){
+		--(rf->pcTop);
+		return rf->pcStack[rf->pcTop + 1];
+	}else{
+		printf("ERROR: pc stack underflow!\n");
+		return -1;
+	}
 }
 
 //==========================================================
@@ -690,11 +701,15 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 	char* stringHead;
 	unsigned int nstrings;
 	
+	printf("\tcheckpoint 0: pc = %ld", pc); /// DEBUG
+	
 	while (pc < *length && byteStream[pc] != META_END){
 		printf("meta byte\n");
 		switch(byteStream[pc]){
 		case META_BEGIN:
+			printf("\tMETA_BEGIN found\n"); /// DEBUG
 			pc += 1;
+			printf("\tcheckpoint 1: pc = %ld\n", pc); /// DEBUG
 			break;
 		case META_VERSION:
 			// read version from next 2 bytes
@@ -704,8 +719,10 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 			
 			// move pc to next metadata
 			pc += 3;
-			
+			printf("\tcheckpoint 2: pc = %ld\n", pc); /// DEBUG
+			break;
 		case META_STRING:
+			printf("\tMETA_STRING (%x) at %ld\n", byteStream[pc], pc);
 			// read string length from next 2 bytes
 			stringLength = byteStream[pc + 1];
 			stringLength = stringLength << 8;
@@ -730,7 +747,8 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 			
 			// move pc to next metadata
 			pc += 3 + stringLength;
-			
+			printf("\tcheckpoint 3: pc = %ld\n", pc); /// DEBUG
+			break;
 		case META_NSTRING:
 			// read the number of string constants
 			nstrings = byteStream[pc + 1];
@@ -744,15 +762,17 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 			
 			// move pc to next metadata
 			pc += 3;
+			printf("\tcheckpoint 4: pc = %ld\n", pc); /// DEBUG
 			break;
 		case META_END:
 			return pc + 1;
 		default:
 			pc += 1;
+			printf("\tcheckpoint 5: pc = %ld\n", pc); /// DEBUG
 		}
 	}
 	
-	printf("about to return a pc of %ld", pc);
+	printf("\tabout to return a pc of %ld\n", pc); /// DEBUG
 	
 	return pc + 1;
 }
