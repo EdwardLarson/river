@@ -468,15 +468,17 @@ Data_Object Assembler::read_literal(const std::string& literal){
 	}
 	
 	IntegerType tmpInt = 0;
-	RationalType tmpRat = 0;
+	RationalType tmpRat = 0.0f;
 	unsigned int decimal = 0;
 	
 	for (unsigned int i = 0; i < literal.length(); i++){
 		if (literal[i] == '.'){
 			object.type = RATIONAL;
 			decimal = i;
+			continue;
 		}
-		
+		unsigned int x;
+		RationalType y;
 		switch(object.type){
 		case INTEGER:
 			tmpInt *= 10;
@@ -493,10 +495,12 @@ Data_Object Assembler::read_literal(const std::string& literal){
 	
 	if (object.type == RATIONAL){
 		RationalType denom = 1;
-		for (unsigned int i = 0; i < decimal; i++, denom *= 10);
+		for (unsigned int i = 0; i < (literal.length() - decimal); i++, denom *= 10);
 		
 		tmpRat /= denom;
 		tmpRat += (RationalType) tmpInt;
+		
+		printf("Rational %f built from tmpInt %ld\n", tmpRat, tmpInt); ///DEBUG
 		
 		object.data.d = tmpRat;
 	}else{
