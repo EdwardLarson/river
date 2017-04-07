@@ -44,12 +44,8 @@ void Lexer::interpret_line(const std::string& line){
 	if (state != S_ELLIPSE){
 		unsigned int lineIndent = count_whitespace(currentLine);
 		if (lineIndent > previousIndent){
-			// if (lineIndent == previousIndent + 1){
-				// TokenPair newToken = {TKN_ENTERBLOCK, ""};
-				// tokenStream.push_back( newToken );
-			// }
 			for (unsigned int i = 0; i < lineIndent - previousIndent; i++){
-				TokenPair newToken = {TKN_EXITBLOCK, ""};
+				TokenPair newToken = {TKN_ENTERBLOCK, ""};
 				tokenStream.push_back( newToken );
 			}
 		}else if (lineIndent < previousIndent){
@@ -99,7 +95,7 @@ void Lexer::interpret_line(const std::string& line){
 				break;
 			case S_DONE:
 				// do nothing when done
-				break;
+				continue;
 		}
 		
 		previousCharType = get_char_type(line[colNo]);
@@ -131,7 +127,6 @@ void Lexer::interpret_line(const std::string& line){
 			break;
 		case S_NONE:
 			//either no more characters to build tokens from or syntax issues
-			std::cout << "DISCARDED TOKEN " << currentToken << " in line " << lineNo << std::endl;
 			currentToken = "";
 			break;
 		case S_ENDSTMNT:
@@ -196,12 +191,6 @@ void Lexer::process_char_S_OPERATOR(char c){
 			// operator is done; save the operator token to tokenStream
 			label_and_push_token(TKN_OPERATOR);
 
-			// set new state based on character type
-			//state = next_state_from_char(charType);
-			//if (state != S_NONE){
-			//	currentToken += c;
-			//}
-			//break;
 			start_new_token(c);
 			break;
 		
@@ -251,43 +240,11 @@ void Lexer::process_char_S_TEXT(char c){
 			// identifiers are allowed to have numbers in them
 			currentToken += c;
 			
-		/* NOT BOTHERING WITH ERROR CHECKING IN LEXER
-		case C_QUOTE:
-			///print_syntax_error("\tMisplaced '\"' character; try whitespace or operator to separate string literal");
-			
-			// push the identifer or reserved word we have to tokenStream
-			label_and_push_token(is_reserved_word(currentToken)? 
-				TKN_RWORD : TKN_IDENTIFIER);
-				
-			// state is undefined
-			//state = S_NONE;
-			
-			start_new_token(c);
-				
-			break;
-		case C_ESCAPE:
-			// syntax error; line is something like: foo\ 
-			///print_syntax_error("\tMisplaced '\\' character; try adding whitespace or removing character");
-			
-			// push the identifer or reserved word we have to tokenStream
-			label_and_push_token(is_reserved_word(currentToken)? 
-				TKN_RWORD : TKN_IDENTIFIER);
-			
-			// state is undefined
-			//state = S_NONE;
-			
-			start_new_token(c);
-			
-			break;*/
 		default:
 			// identifer or reserved word is done
 			label_and_push_token(is_reserved_word(currentToken)? 
 				TKN_RWORD : TKN_IDENTIFIER);
 				
-			// state = next_state_from_char(charType);
-			// if (state != S_NONE){
-				// currentToken += c;
-			// }
 			start_new_token(c);
 			
 			break;
@@ -309,47 +266,12 @@ void Lexer::process_char_S_NUMBER(char c){
 				
 				currentToken += c;
 				
-			//}else{
-				///print_syntax_error("\tMisplaced '.' character. A number cannot have more than two dots.");
-				
-				//label_and_push_token(TKN_NUMLITERAL);
-				//state = S_NONE;
-			//}
 			break;
 			
-		/* NOT BOTHERING WITH ERROR CHECKING IN LEXER
-		case C_QUOTE:
-			// syntax error: line is something like: 53 + 45"blah"
-			///print_syntax_error("\tMisplaced '\"' character; try adding whitespace or removing character");
-			// assume the quote marks beginning of string literal
-			state = S_STRING;
-			
-			// push the identifer or reserved word we have to tokenStream
-			label_and_push_token(TKN_NUMLITERAL);
-			
-			break;
-		case C_ESCAPE:
-			// syntax error: line is something like: 53 + 45\ 
-			print_syntax_error("\tMisplaced '\\' character; try removing character");
-			///std::cout << "\tMisplaced '\\' character; try removing character" << std::endl;
-			
-			// push the identifer or reserved word we have to tokenStream
-			label_and_push_token(TKN_NUMLITERAL);
-			
-			// state is undefined
-			state = S_NONE;
-			
-			break;
-			
-			*/
 		default:
 			// number literal has ended in some way
 			label_and_push_token(TKN_NUMLITERAL);
-			//
-			//state = next_state_from_char(charType);
-			//if (state != S_NONE){
-			//	currentToken += c;
-			//}
+
 			start_new_token(c);
 			
 			break;
@@ -520,9 +442,7 @@ bool Lexer::is_operator(char c){
 
 bool Lexer::is_whitespace(char c){
 	for (unsigned int i = 0; i < nWSPACECHARS; i++){
-		//std::cout << "Checking defined whitespace char " << (unsigned int) whitespaceChars[i] << ", c = " << (unsigned int) c << std::endl;
 		if (c == whitespaceChars[i]){
-			//std::cout << "Determined ASCII " << (unsigned int) c << " to be whitespace" << std::endl;
 			return true;
 		}
 	}
