@@ -242,6 +242,13 @@ void Assembler::assemble_instruction(const std::string& instruction){
 	
 	char subfunction = ' ';
 	Byte opcode = read_opcode(instruction, index, subfunction);
+	if (opcode == 0x17 << 2){
+			std::cout << "frame popped" << std::endl; /// DEBUG
+		pop_frame();
+	}else if (opcode == 0x18 << 2){
+			std::cout << "frame pushed" << std::endl; /// DEBUG
+		push_frame();
+	}
 	
 			std::cout << "opcode: " << (int) opcode << std::endl; ///DEBUG 
 	

@@ -141,12 +141,6 @@ void execute(const Byte* byteStream, const PCType* length){
 					// fall into default
 				default:
 					{
-					//temporary cast union
-					// union {
-						// signed long asSigned; 
-						// unsigned long asUnsigned;
-					// } castUnion;
-					// castUnion.asSigned = read_integer_direct(&byteStream[pc + 2]);
 					pcNext = read_address_literal(&byteStream[pc + 2]);
 					break;
 					}
@@ -237,6 +231,49 @@ void execute(const Byte* byteStream, const PCType* length){
 			break;
 //LT
 		case LT:
+			
+			//PROBLEM: seems to always return 2, at least on VG
+			
+			tmpReturn.type = BOOL;
+			
+			switch(funct){
+			case 0: //GG
+				a = access_register(byteStream[pc + 1], &registerFile);
+				b = access_register(byteStream[pc + 2], &registerFile);
+				
+				pcNext += 2;
+				break;
+			case 1: //GV
+				a = access_register(byteStream[pc + 1], &registerFile);
+				b = fetch_data(&byteStream[pc + 2]);
+				
+				pcNext += 1 + DATA_OBJECT_SIZE;
+				break;
+			case 2: //VG
+				a = fetch_data(&byteStream[pc + 1]);
+				b = access_register(byteStream[pc + DATA_OBJECT_SIZE + 1], &registerFile);
+				
+				pcNext += 1 + DATA_OBJECT_SIZE;
+				break;
+			}
+
+			
+			switch(a->type){
+			case INTEGER:
+				tmpReturn.data.b = (a->data.n) < (b->data.n);
+				break;
+			case RATIONAL:
+				tmpReturn.data.b = (a->data.d) < (b->data.d);
+				break;
+			case BOOL:
+				tmpReturn.data.b = (a->data.b) < (b->data.b);
+			default:
+				tmpReturn.data.b = 0;
+				break;
+			}
+			
+			r = &tmpReturn;
+			
 			break;
 //MALLOC
 		case MALLOC:
@@ -369,7 +406,7 @@ void execute(const Byte* byteStream, const PCType* length){
 			break;
 //MOVE
 		case MOVE:
-			r = access_register(pc + 1, &registerFile); // registerO
+			r = access_register(byteStream[pc + 1], &registerFile); // registerO
 			pcNext += 1;
 			break;
 //MUL
