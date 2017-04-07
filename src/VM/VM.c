@@ -129,7 +129,7 @@ void execute(const Byte* byteStream, const PCType* length){
 		case BRANCH:
 			pcNext += 1 + sizeof(PCType);
 			// check given register
-			if (read_bool_direct(&byteStream[pc + 1])){
+			if (access_register(byteStream[pc + 1], &registerFile)->data.b){
 				
 				switch(funct){
 				case 1: // linked branch
@@ -232,8 +232,6 @@ void execute(const Byte* byteStream, const PCType* length){
 //LT
 		case LT:
 			
-			//PROBLEM: seems to always return 2, at least on VG
-			
 			tmpReturn.type = BOOL;
 			
 			switch(funct){
@@ -267,6 +265,7 @@ void execute(const Byte* byteStream, const PCType* length){
 				break;
 			case BOOL:
 				tmpReturn.data.b = (a->data.b) < (b->data.b);
+				break;
 			default:
 				tmpReturn.data.b = 0;
 				break;
