@@ -10,7 +10,7 @@
 	ptr + offset
 #endif
 
-void execute(const Byte* byteStream, const PCType* length){
+void execute(const Byte* byteStream, const PCType* length, Byte log){
 	Meta_Data metaData;
 	PCType pc = read_metadata(byteStream, length, &metaData);
 	
@@ -22,7 +22,9 @@ void execute(const Byte* byteStream, const PCType* length){
 	}
 	
 	printf("Running bytecode for version %i:%i\n", metaData.versionMain, metaData.versionSub);
-	printf("Execution beginning at pc=%ld\n", pc);
+	if (log){
+		printf("Execution beginning at pc=%ld\n", pc);
+	}
 	
 	PCType pcNext = pc + 1;
 	
@@ -47,8 +49,6 @@ void execute(const Byte* byteStream, const PCType* length){
 	
 	while(running && (pc < *length)){
 		
-		printf("\tpc = %ld\n", pc); ///DEBUG
-		
 		pcNext = pc + 1; // automatically incremented 1 byte for instruction, so operations should only increment it for argument bytes
 		
 		instruction = byteStream[pc];
@@ -61,9 +61,12 @@ void execute(const Byte* byteStream, const PCType* length){
 		returnBit = (instruction & 0x80);
 		
 		/// DEBUG
-		printf("\topcode: %d\n", opcode);
-		printf("\tfunct: %d\n", funct);
-		printf("\treturnBit: %d\n", returnBit);
+		if (log){
+			printf("\tpc = %ld\n", pc); ///DEBUG
+			printf("\topcode: %d\n", opcode);
+			printf("\tfunct: %d\n", funct);
+			printf("\treturnBit: %d\n", returnBit);
+		}
 		
 		switch (opcode){
 //ABS
@@ -168,7 +171,7 @@ void execute(const Byte* byteStream, const PCType* length){
 //HALT
 		case HALT:
 			running = 0;
-			printf("HALTING");
+			if (log) printf("HALTING");
 			continue;
 //INPUT
 		case INPUT:
@@ -200,31 +203,6 @@ void execute(const Byte* byteStream, const PCType* length){
 			
 			pc = pcNext;
 			continue;
-//LOAD
-		case LOAD:
-			switch(funct){
-			case 0: // load a normal constant
-				r = fetch_data(&byteStream[pc + 1]);
-				pcNext += DATA_OBJECT_SIZE;
-				break;
-			case 1: // load a string constant
-				// read next two bytes as high and low of the constant's id
-				{
-				unsigned int stringID = byteStream[pc + 1];
-				stringID = stringID << 8;
-				stringID += byteStream[pc + 2];
-				
-				tmpReturn.type = STRING;
-				tmpReturn.data.s = metaData.stringHeads[stringID];
-				tmpReturn.aux[0] = metaData.stringLens[stringID] >> 8;
-				tmpReturn.aux[1] = metaData.stringLens[stringID] & 0xFF;
-				r = &tmpReturn;
-				
-				pcNext += 2;
-				}
-				break;
-			}
-			break;
 //LSH
 		case LSH:
 			
@@ -405,8 +383,33 @@ void execute(const Byte* byteStream, const PCType* length){
 			break;
 //MOVE
 		case MOVE:
-			r = access_register(byteStream[pc + 1], &registerFile); // registerO
-			pcNext += 1;
+			
+			switch(funct){
+			case 0: // move one register's value to another
+				r = access_register(byteStream[pc + 1], &registerFile); // registerO
+				pcNext += 1;
+				break;
+			case 1: // load a literal value to a register
+				r = fetch_data(&byteStream[pc + 1]);
+				pcNext += DATA_OBJECT_SIZE;
+				break;
+			case 2: // load a string literal to a register
+				// read next two bytes as high and low of the constant's id
+				{
+				unsigned int stringID = byteStream[pc + 1];
+				stringID = stringID << 8;
+				stringID += byteStream[pc + 2];
+				
+				tmpReturn.type = STRING;
+				tmpReturn.data.s = metaData.stringHeads[stringID];
+				tmpReturn.aux[0] = metaData.stringLens[stringID] >> 8;
+				tmpReturn.aux[1] = metaData.stringLens[stringID] & 0xFF;
+				}
+				r = &tmpReturn;
+				
+				pcNext += 2;
+				break;
+			}
 			break;
 //MUL
 		case MUL:
@@ -495,7 +498,7 @@ void execute(const Byte* byteStream, const PCType* length){
 			break;
 //PRINT
 		case PRINT:
-			printf("PRINTING\n");
+			if (log) printf("PRINTING\n");
 			switch(funct){
 			case 0: // print register
 				a = access_register(byteStream[pc + 1], &registerFile);
@@ -512,7 +515,7 @@ void execute(const Byte* byteStream, const PCType* length){
 				continue;
 			}
 			
-			printf("\tactual type: %d\n", a->type);
+			if (log) printf("\tactual type: %d\n", a->type);
 			switch(a->type){
 			case INTEGER:
 				printf("INTEGER: %ld", a->data.n);
@@ -708,7 +711,7 @@ void write_default_output(const Data_Object* object, Register_File* rf){
 
 void push_pc(PCType* pc_entry, Register_File* rf){
 	if (rf->pcTop < PC_STACK_SIZE - 1){
-		printf("enough space\n"); ///DEBUG
+		///printf("enough space\n"); ///DEBUG
 		++(rf->pcTop);
 		rf->pcStack[rf->pcTop] = *pc_entry;
 	}else{
@@ -737,15 +740,12 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 	char* stringHead;
 	unsigned int nstrings;
 	
-	printf("\tcheckpoint 0: pc = %ld", pc); /// DEBUG
-	
 	while (pc < *length && byteStream[pc] != META_END){
-		printf("meta byte\n");
+		///printf("meta byte\n"); /// DEBUG
 		switch(byteStream[pc]){
 		case META_BEGIN:
-			printf("\tMETA_BEGIN found\n"); /// DEBUG
+			///printf("\tMETA_BEGIN found\n"); /// DEBUG
 			pc += 1;
-			printf("\tcheckpoint 1: pc = %ld\n", pc); /// DEBUG
 			break;
 		case META_VERSION:
 			// read version from next 2 bytes
@@ -755,10 +755,9 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 			
 			// move pc to next metadata
 			pc += 3;
-			printf("\tcheckpoint 2: pc = %ld\n", pc); /// DEBUG
 			break;
 		case META_STRING:
-			printf("\tMETA_STRING (%x) at %ld\n", byteStream[pc], pc);
+			/// printf("\tMETA_STRING (%x) at %ld\n", byteStream[pc], pc); /// DEBUG
 			// read string length from next 2 bytes
 			stringLength = byteStream[pc + 1];
 			stringLength = stringLength << 8;
@@ -783,7 +782,6 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 			
 			// move pc to next metadata
 			pc += 3 + stringLength;
-			printf("\tcheckpoint 3: pc = %ld\n", pc); /// DEBUG
 			break;
 		case META_NSTRING:
 			// read the number of string constants
@@ -798,17 +796,13 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 			
 			// move pc to next metadata
 			pc += 3;
-			printf("\tcheckpoint 4: pc = %ld\n", pc); /// DEBUG
 			break;
 		case META_END:
 			return pc + 1;
 		default:
 			pc += 1;
-			printf("\tcheckpoint 5: pc = %ld\n", pc); /// DEBUG
 		}
 	}
-	
-	printf("\tabout to return a pc of %ld\n", pc); /// DEBUG
 	
 	return pc + 1;
 }

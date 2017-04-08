@@ -12,6 +12,9 @@
 
 #define LONGEST_INSTRUCTION_LENGTH 9
 
+#define ASSEMBLER_VERSION_MAIN	0
+#define ASSEMBLER_VERSION_SUB	3
+
 /* ASSEMBLER
 * Assembling object which reads a file containing
 * some assembly code and converts it into bytecode,
@@ -63,6 +66,8 @@ public:
 	bool assemble();
 	const std::vector<Byte>& get_bytecode(){return byteVec;};
 	
+	void set_log(bool enableLogging){log = enableLogging;};
+	
 private:
 	typedef enum {AERROR_NONE, AERROR_WRONGARGS, AERROR_ARGTYPES, AERROR_NOPCODE, AERROR_REGLIMIT, AERROR_BADRET} AssemblerError;
 	// for each label, stores the actual pointer for that label and a list of every instruction which references this label
@@ -70,6 +75,8 @@ private:
 	
 	
 	AssemblerError error;
+	
+	bool log;
 
 	std::istream& inStream;
 	std::vector<Byte> byteVec;

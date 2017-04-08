@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #define WWHEEL_VERSION_MAIN	0
-#define WWHEEL_VERSION_SUB	2
+#define WWHEEL_VERSION_SUB	3
 
 #define REGISTER_NODE_SIZE 512
 #define DATA_OBJECT_SIZE 16
@@ -48,27 +48,26 @@ typedef enum _OPCODE{
 /* 8*/	HALT,
 /* 9*/	INPUT,
 /*10*/	JUMP,
-/*11*/	LOAD,
-/*12*/	LSH,
-/*13*/	LT,
-/*14*/	MALLOC,
-/*15*/	MFREE,
-/*16*/	MLOAD,
-/*17*/	MOD,
-/*18*/	MOVE,
-/*19*/	MSTORE,
-/*20*/	MUL,
-/*21*/	NOT, // a bitwise inversion (~), the logical operator (!) can be found by BRANCH
-/*22*/	OR,
-/*23*/	POPFRAME,
-/*24*/	PUSHFRAME,
-/*25*/	POW,
-/*26*/	PRINT,
-/*27*/	RETURN,
-/*28*/	RSH,
-/*29*/	SETDO,
-/*30*/	SUB,
-/*31*/	XOR
+/*11*/	LSH,
+/*12*/	LT,
+/*13*/	MALLOC,
+/*14*/	MFREE,
+/*15*/	MLOAD,
+/*16*/	MOD,
+/*17*/	MOVE,
+/*18*/	MSTORE,
+/*19*/	MUL,
+/*20*/	NOT, // a bitwise inversion (~), the logical operator (!) can be found by BRANCH
+/*21*/	OR,
+/*22*/	POPFRAME,
+/*23*/	PUSHFRAME,
+/*24*/	POW,
+/*25*/	PRINT,
+/*26*/	RETURN,
+/*27*/	RSH,
+/*28*/	SETDO,
+/*29*/	SUB,
+/*30*/	XOR
 } OPCODE;
 
 /*
@@ -148,7 +147,7 @@ typedef struct {
 // VM FUNCTIONS
 //==========================================================
 
-void execute(const Byte* byteStream, const PCType* length);
+void execute(const Byte* byteStream, const PCType* length, Byte log);
 PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* metaData);
 
 // Bytestream manipulation

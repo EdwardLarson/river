@@ -6,22 +6,14 @@ Assembler::Assembler(std::istream& instrm): inStream(instrm), byteVec() {
 	nextFreePersistent = NUM_REGISTERS - NUM_PERSISTENT_REGISTERS;
 	
 	// add mapping to persistent register 0 for "$zero"
-	std::cout << "\tzero reg: " << (int) get_register("zero", true) << std::endl;
+	if (log) std::cout << "\tzero reg: " << (int) get_register("zero", true) << std::endl;
 }
 
 // Assemble the given input into bytecode. Outputs to the given output stream.
 // Returns true on assembly success, false on failure/error
 bool Assembler::assemble(){
 	
-	//TO-DO: assembler must make two passes
-	// first pass will indentify & replace labels, and remove string constants
-	// second pass will 
-	
-	/*
-	label handling: as the assembly is read, instructions need to know what their label
-	*/
-	
-			std::cout << "beginning assembly" << std::endl; ///DEBUG
+			if (log) std::cout << "beginning assembly" << std::endl; ///DEBUG
 	
 	error = AERROR_NONE;
 	unsigned int lineCount = 1;
@@ -29,8 +21,8 @@ bool Assembler::assemble(){
 	// write metadata
 	write_byte(META_BEGIN);
 	write_byte(META_VERSION);
-	write_byte(0x00); // versionMain = 0
-	write_byte(0x01); // versionSub = 1
+	write_byte(ASSEMBLER_VERSION_MAIN);
+	write_byte(ASSEMBLER_VERSION_SUB);
 	write_byte(META_END);
 	
 	
@@ -45,7 +37,7 @@ bool Assembler::assemble(){
 		
 		switch(error){
 		case AERROR_NONE:
-			std::cout << "line assemby success" << std::endl;
+			if (log) std::cout << "line assemby success" << std::endl;
 			break;
 		case AERROR_WRONGARGS:
 			std::cout << "error [" << lineCount << "]: instruction has wrong args" << std::endl;
@@ -72,7 +64,7 @@ bool Assembler::assemble(){
 	// go back and fill in labels
 	assemble_labels();
 	
-	std::cout << "file assembly successful" << std::endl;
+	if (log) std::cout << "file assembly successful" << std::endl;
 	
 	return true;
 }
@@ -88,14 +80,14 @@ Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
 	
 	if (isPersistent){
 		if (nextFreePersistent == NUM_REGISTERS - 1){
-			//std::cerr << "error: no more registers to allocate" << std::endl;
+			 if (log) std::cerr << "error: no more registers to allocate" << std::endl;
 			error = AERROR_REGLIMIT;
 			return 0;
 		}
 	}else{
 		// return 0 if no more registers to allocate
 		if (nextFree == NUM_REGISTERS - NUM_PERSISTENT_REGISTERS){
-			//std::cerr << "error: no more registers to allocate" << std::endl;
+			 if (log) std::cerr << "error: no more registers to allocate" << std::endl;
 			error = AERROR_REGLIMIT;
 			return 0;
 		}
@@ -116,7 +108,7 @@ Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
 		
 		// increment nextFree and return the allocated register
 		
-		std::cout << "\tallocated new register " << identifier << std::endl; /// DEBUG
+		if (log) std::cout << "\tallocated new register " << identifier << std::endl; /// DEBUG
 		
 		if (isPersistent){
 			++nextFreePersistent;
@@ -129,7 +121,7 @@ Byte Assembler::get_register(const std::string& identifier, bool isPersistent){
 		// entry not inserted
 		
 		// return the previously allocated register
-		std::cout << "\tidentified old register " << identifier << std::endl; /// DEBUG
+		if (log) std::cout << "\tidentified old register " << identifier << std::endl; /// DEBUG
 		return search.first->second;
 	}
 }
@@ -145,14 +137,14 @@ void Assembler::define_label(const std::string& label){
 		
 		labelMap[label] = locAndRefs;
 		
-		std::cout << "\tDEFINED label " << label << " to " << byteVec.size() << std::endl; ///DEBUG
+		if (log) std::cout << "\tDEFINED label " << label << " to " << byteVec.size() << std::endl; ///DEBUG
 	}else{
 		// set this label's location to the next byte (next instruction) which will be written
 		search->second // std::pair<PCType, std::list<PCType>>
 			.first // PCType
 				= byteVec.size();
 				
-		std::cout << "\tREDEFINED label " << label << " to " << byteVec.size() << std::endl; /// DEBUG
+		if (log) std::cout << "\tREDEFINED label " << label << " to " << byteVec.size() << std::endl; /// DEBUG
 	}
 }
 
@@ -176,7 +168,7 @@ void Assembler::add_label_ref(const std::string& label){
 		
 	}
 	
-	std::cout << "\tREFERENCED " << label << " at " << byteVec.size() << std::endl; /// DEBUG
+	if (log) std::cout << "\tREFERENCED " << label << " at " << byteVec.size() << std::endl; /// DEBUG
 }
 
 // push_frame: Creates a new set of dynamic mappings which
@@ -215,12 +207,12 @@ void Assembler::assemble_instruction(const std::string& instruction){
 	
 	std::cout << std::hex;
 	
-			std::cout << "instruction: " << instruction << std::endl; ///DEBUG 
+			if (log) std::cout << "instruction: " << instruction << std::endl; ///DEBUG 
 	
 	// check if line is a label
 	if (instruction[0] == ':'){
 		
-				std::cout << "line is label" << std::endl; ///DEBUG
+				if (log) std::cout << "line is label" << std::endl; ///DEBUG
 		
 		std::string label = "";
 		for (unsigned int i = 1; i < instruction.length(); i++){
@@ -243,35 +235,35 @@ void Assembler::assemble_instruction(const std::string& instruction){
 	char subfunction = ' ';
 	Byte opcode = read_opcode(instruction, index, subfunction);
 	if (opcode == 0x17 << 2){
-			std::cout << "frame popped" << std::endl; /// DEBUG
+			if (log) std::cout << "frame popped" << std::endl; /// DEBUG
 		pop_frame();
 	}else if (opcode == 0x18 << 2){
-			std::cout << "frame pushed" << std::endl; /// DEBUG
+			if (log) std::cout << "frame pushed" << std::endl; /// DEBUG
 		push_frame();
 	}
 	
-			std::cout << "opcode: " << (int) opcode << std::endl; ///DEBUG 
+			if (log) std::cout << "opcode: " << (int) opcode << std::endl; ///DEBUG 
 	
 	std::vector<Argument> args = read_args(instruction, index);
 	
-			std::cout << "checkpoint: args read" << std::endl; ///DEBUG 
+			if (log) std::cout << "checkpoint: args read" << std::endl; ///DEBUG 
 	
 	Byte funct = get_funct(opcode, args, subfunction);
 	
-			std::cout << "funct: " << (int) funct << std::endl; ///DEBUG 
+			if (log) std::cout << "funct: " << (int) funct << std::endl; ///DEBUG 
 	
 	Byte returnReg = 0;
 	Byte returnBit = read_returns(instruction, index, returnReg);
 	
-			std::cout << "return bit: " << (int) returnBit << std::endl; ///DEBUG 
+			if (log) std::cout << "return bit: " << (int) returnBit << std::endl; ///DEBUG 
 	
 	// compile full opcode and output
 	// opcode format: <rooo-ooff>
 	Byte fullOpcode = returnBit | opcode | funct;
 	
-			std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
+			if (log) std::cout << "full opcode: " << (int) fullOpcode << std::endl; ///DEBUG 
 	
-			std::cout << "\n\tInstruction {" << instruction << "} written at " << byteVec.size() << std::endl << std::endl;
+			if (log) std::cout << "\n\tInstruction {" << instruction << "} written at " << byteVec.size() << std::endl << std::endl;
 	write_byte(fullOpcode);
 	
 	// compile arguments into bytes and output
@@ -293,7 +285,7 @@ void Assembler::assemble_argument(const Argument& arg){
 		Data_Object_Cast_Union castUnion;
 		castUnion.data = read_literal(arg.arg);
 		
-		std::cout << "created Data_Object {type=" << castUnion.data.type << ", data=" << castUnion.data.data.n << "} for literal " << arg.arg << std::endl; ///DEBUG
+		if (log) std::cout << "created Data_Object {type=" << castUnion.data.type << ", data=" << castUnion.data.data.n << "} for literal " << arg.arg << std::endl; ///DEBUG
 		
 		for (unsigned int i = 0; i < DATA_OBJECT_SIZE; i++){
 			write_byte(castUnion.bytes[i]);
@@ -303,13 +295,13 @@ void Assembler::assemble_argument(const Argument& arg){
 		Byte reg = get_register(arg.arg);
 		
 		if (error != AERROR_REGLIMIT){
-			std::cout << "\tsuccessfully mapped " << arg.arg << " to register " << (int) reg << std::endl; /// DEBUG
+			if (log) std::cout << "\tsuccessfully mapped " << arg.arg << " to register " << (int) reg << std::endl; /// DEBUG
 			write_byte(reg);
 		}
 	}else if(arg.type == A_REGISTER_P){
 		Byte reg = get_register(arg.arg, true);
 		if (error != AERROR_REGLIMIT){
-			std::cout << "\tsuccessfully mapped " << arg.arg << " to persistent register " << (int) reg << std::endl; /// DEBUG
+			if (log) std::cout << "\tsuccessfully mapped " << arg.arg << " to persistent register " << (int) reg << std::endl; /// DEBUG
 			write_byte(reg);
 		}
 	}else if (arg.type == A_LABEL){
@@ -338,7 +330,7 @@ void Assembler::assemble_labels(){
 				byteVec[*currentReference + i] = castUnion.asBytes[i];
 			}
 			
-					std::cout << "wrote a reference to " << currentLabel->first << '(' << currentLabel->second.first << ") at " << *currentReference << std::endl; ///DEBUG
+					if (log) std::cout << "wrote a reference to " << currentLabel->first << '(' << currentLabel->second.first << ") at " << *currentReference << std::endl; ///DEBUG
 		}
 	}
 }
@@ -428,7 +420,7 @@ Assembler::Argument Assembler::read_argument(const std::string& instruction, uns
 	}
 	//--index; // pull index away from the space after the identifier
 	
-	std::cout << "argument " << argument.arg << " of type " << argument.type << std::endl; /// DEBUG
+	if (log) std::cout << "argument " << argument.arg << " of type " << argument.type << std::endl; /// DEBUG
 	
 	return argument;
 }
@@ -507,7 +499,7 @@ Data_Object Assembler::read_literal(const std::string& literal){
 		tmpRat /= denom;
 		tmpRat += (RationalType) tmpInt;
 		
-		printf("Rational %f built from tmpInt %ld\n", tmpRat, tmpInt); ///DEBUG
+		if (log) std::cout << "Rational " << tmpRat << " built from tmpInt " << tmpInt << std::endl; ///DEBUG
 		
 		object.data.d = tmpRat;
 	}else{
@@ -556,68 +548,65 @@ Byte Assembler::get_opcode_hex(std::string& opcode) const{
 	else if(opcode == "JUMP"){
 		return 0x0A << 2;
 	}
-	else if(opcode == "LOAD"){
+	else if(opcode == "LSH"){
 		return 0x0B << 2;
 	}
-	else if(opcode == "LSH"){
+	else if(opcode == "LT"){
 		return 0x0C << 2;
 	}
-	else if(opcode == "LT"){
+	else if(opcode == "MALLOC"){
 		return 0x0D << 2;
 	}
-	else if(opcode == "MALLOC"){
+	else if(opcode == "MFREE"){
 		return 0x0E << 2;
 	}
-	else if(opcode == "MFREE"){
+	else if(opcode == "MLOAD"){
 		return 0x0F << 2;
 	}
-	else if(opcode == "MLOAD"){
+	else if(opcode == "MOD"){
 		return 0x10 << 2;
 	}
-	else if(opcode == "MOD"){
+	else if(opcode == "MOVE"){
 		return 0x11 << 2;
 	}
-	else if(opcode == "MOVE"){
+	else if(opcode == "MSTORE"){
 		return 0x12 << 2;
 	}
-	else if(opcode == "MSTORE"){
+	else if(opcode == "MUL"){
 		return 0x13 << 2;
 	}
-	else if(opcode == "MUL"){
+	else if(opcode == "NOT"){
 		return 0x14 << 2;
 	}
-	else if(opcode == "NOT"){
+	else if(opcode == "OR"){
 		return 0x15 << 2;
 	}
-	else if(opcode == "OR"){
+	else if(opcode == "POPFRAME"){
 		return 0x16 << 2;
 	}
-	else if(opcode == "POPFRAME"){
+	else if(opcode == "PUSHFRAME"){
 		return 0x17 << 2;
 	}
-	else if(opcode == "PUSHFRAME"){
+	else if(opcode == "POW"){
 		return 0x18 << 2;
 	}
-	else if(opcode == "POW"){
+	else if(opcode == "PRINT"){
 		return 0x19 << 2;
 	}
-	else if(opcode == "PRINT"){
+	else if(opcode == "RETURN"){
 		return 0x1A << 2;
 	}
-	else if(opcode == "RETURN"){
+	else if(opcode == "RSH"){
 		return 0x1B << 2;
 	}
-	else if(opcode == "RSH"){
+	else if(opcode == "SETDO"){
 		return 0x1C << 2;
 	}
-	else if(opcode == "SETDO"){
+	else if(opcode == "SUB"){
 		return 0x1D << 2;
 	}
-	else if(opcode == "SUB"){
-		return 0x1E << 2;
-	}
 	else if(opcode == "XOR"){
-		return 0x1F << 2;
+		return 0x1E << 2;
 	}else{
 		return 0xFF;
 	}
@@ -641,12 +630,11 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		
 	case SETDO:
 	case ABS:
-	case MOVE:
 	case NOT:
 	case INPUT:
 		if (args.size() != 1){
 			error = AERROR_WRONGARGS;
-			std::cout << "\tB" << std::endl;
+			if (log) std::cout << "\tB" << std::endl;
 		}
 		
 		return 0x00;
@@ -668,7 +656,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 	case XOR:
 		if (args.size() != 2){
 			error = AERROR_WRONGARGS;
-			std::cout << "\tC1" << std::endl;
+			if (log) std::cout << "\tC1" << std::endl;
 			return 0x00;
 		}
 		
@@ -682,7 +670,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 				&& (args[1].type == A_REGISTER || args[1].type == A_REGISTER_P)){ // VG
 			return 0x02;
 		}else{
-			std::cout << "\tC2" << std::endl;
+			if (log) std::cout << "\tC2" << std::endl;
 			error = AERROR_WRONGARGS;
 			return 0x00;
 		}
@@ -697,7 +685,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 				return 0x03;
 			else{
 				error = AERROR_WRONGARGS;
-				std::cout << "\tD" << std::endl;
+				if (log) std::cout << "\tD" << std::endl;
 				return 0x00;
 			}
 		}else{
@@ -706,7 +694,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 			else if (args.size() == 3)
 				return 0x01;
 			else{
-				std::cout << "\tE" << std::endl;
+				if (log) std::cout << "\tE" << std::endl;
 				error = AERROR_WRONGARGS;
 				return 0x00;
 			}
@@ -715,7 +703,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 	
 	case BRANCH:
 		if (args.size() != 2){
-			std::cout << "\tF" << std::endl;
+			if (log) std::cout << "\tF" << std::endl;
 			error = AERROR_WRONGARGS;
 		}
 		
@@ -731,7 +719,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		break;
 	case JUMP:
 		if (args.size() != 1){
-			std::cout << "\tG" << std::endl;
+			if (log) std::cout << "\tG" << std::endl;
 			error = AERROR_WRONGARGS;
 		}
 		
@@ -740,14 +728,15 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		}else{
 			return 0x00;
 		}
-	case LOAD:
+	case MOVE:
 		if (args.size() != 1){
-			std::cout << "\tH" << std::endl;
+			if (log) std::cout << "\tH" << std::endl;
 			error = AERROR_WRONGARGS;
 		}
-		
-		if (args[0].type == A_STRING){
+		if (args[0].type == A_VALUE){
 			return 0x01;
+		}else if (args[0].type == A_STRING){
+			return 0x02;
 		}else{
 			return 0x00;
 		}
@@ -763,7 +752,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 			return 0x02;
 		}else{
 			if (args.size() != 1){
-				std::cout << "\tI" << std::endl;
+				if (log) std::cout << "\tI" << std::endl;
 				error = AERROR_WRONGARGS;
 			}
 			

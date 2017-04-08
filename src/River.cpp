@@ -81,7 +81,7 @@ int main(int argc, char** argv){
 			}
 		}
 	
-		std::cout << "args processed" << std::endl;
+		///std::cout << "args processed" << std::endl;
 		
 		
 		if (givenInput) {
@@ -155,7 +155,7 @@ int main(int argc, char** argv){
 			}
 		}
 		
-		std::cout << "args processed" << std::endl;
+		///std::cout << "args processed" << std::endl;
 		
 		if (givenInput){
 			std::ifstream inStream;
@@ -203,10 +203,12 @@ int main(int argc, char** argv){
 			currentArg = argv[i];
 			if (currentArg == "-i"){
 				givenInput = read_flag_args(argc, argv, i, inputFiles);
+			}else if (currentArg == "-log"){
+				log = true;
 			}
 		}
 		
-		std::cout << "args processed" << std::endl;
+		///std::cout << "args processed" << std::endl;
 		
 		if (givenInput){
 			std::ifstream inStream;
@@ -227,7 +229,7 @@ int main(int argc, char** argv){
 				
 				inStream.read((char*) byteStream, progLength);
 				
-				execute(byteStream, &progLength);
+				execute(byteStream, &progLength, log);
 				
 				delete[] byteStream;
 			}
@@ -267,10 +269,12 @@ int main(int argc, char** argv){
 				
 				outStream = fileOut;
 				givenOutput = true;
+			}else if (currentArg == "-log"){
+				log = true;
 			}
 		}
 		
-		std::cout << "args processed" << std::endl;
+		///std::cout << "args processed" << std::endl;
 		
 		if (givenInput){
 			std::ifstream inStream;
@@ -285,6 +289,7 @@ int main(int argc, char** argv){
 				}
 				
 				Assembler assembler(inStream);
+				assembler.set_log(log);
 				
 				assembler.assemble();
 				inStream.close();
@@ -303,7 +308,7 @@ int main(int argc, char** argv){
 			
 			// run assembled bytestream
 			PCType progLength = byteStream.size();
-			execute(&byteStream[0], &progLength);
+			execute(&byteStream[0], &progLength, log);
 		}
 	}else if (funct == "compile"){
 		// -i <input file(s)> [-o <output file> -op <parse output file> -oa <assembly output file> -log <loging file>]

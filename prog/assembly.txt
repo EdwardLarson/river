@@ -1,5 +1,5 @@
 PRINT #zero
-LOAD 3 > $a
+MOVE 3 > $a
 PRINT #zero
 ADD $a 10 > $b
 ADD $b $a > $c
