@@ -6,7 +6,9 @@ Assembler::Assembler(std::istream& instrm): inStream(instrm), byteVec() {
 	nextFreePersistent = NUM_REGISTERS - NUM_PERSISTENT_REGISTERS;
 	
 	// add mapping to persistent register 0 for "$zero"
-	if (log) std::cout << "\tzero reg: " << (int) get_register("zero", true) << std::endl;
+	Byte zeroReg = get_register("zero", true);
+	
+	if (log) std::cout << "\tzero reg: " << (int) zeroReg << std::endl;
 }
 
 // Assemble the given input into bytecode. Outputs to the given output stream.

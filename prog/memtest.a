@@ -1,0 +1,6 @@
+MOVE 5 > $a
+MOVE #zero > $defaultint
+MALLOC $defaultint > $ptr
+MSTORE $a $ptr
+MLOAD $ptr $defaultint > $b
+PRINT $b

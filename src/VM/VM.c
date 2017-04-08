@@ -287,6 +287,8 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				break;
 			}
 			
+			r = &tmpReturn;
+			
 			pcNext += 2;
 			
 			break;
@@ -300,7 +302,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				break;
 			case 1: // subfunction to be used for reference-counting garbage collection
 				// check aux bytes
-				if (0){
+				if (1){
 					free (a->data.p);
 				}
 				break;
