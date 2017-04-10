@@ -744,7 +744,17 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		}
 		break;
 	case MALLOC:
-		return 0x00;
+		if (subfunction == 'D'){
+			if (args.size() != 2){
+				error = AERROR_WRONGARGS;
+			}
+			return 0x01;
+		}else{
+			if (args.size() != 1){
+				error = AERROR_WRONGARGS;
+			}
+			return 0x00;
+		}
 		break;
 	case MFREE:
 		return 0x00;

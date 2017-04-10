@@ -255,41 +255,41 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 //MALLOC
 		case MALLOC:
 			a = access_register(byteStream[pc + 1], &registerFile);
-			b = access_register(byteStream[pc + 2], &registerFile);
 			
 			tmpReturn.type = POINTER;
 			
 			switch(funct){
 			case 0:
-				tmpReturn.data.p = malloc(DATA_OBJECT_SIZE * b->data.n);
+				tmpReturn.data.p = malloc(DATA_OBJECT_SIZE * a->data.n);
+				pcNext += 1;
 				break;
 			case 1:
-				switch(a->type){
+				b = access_register(byteStream[pc + 2], &registerFile);
+				switch(b->type){
 				case INTEGER:
-					tmpReturn.data.p = malloc(sizeof(IntegerType) * b->data.n);
+					tmpReturn.data.p = malloc(sizeof(IntegerType) * a->data.n);
 					break;
 				case RATIONAL:
-					tmpReturn.data.p = malloc(sizeof(RationalType) * b->data.n);
+					tmpReturn.data.p = malloc(sizeof(RationalType) * a->data.n);
 					break;
 				case NIL:
 					tmpReturn.data.p = 0x00;
 					break;
 				case BOOL:
-					tmpReturn.data.p = malloc(sizeof(Byte) * b->data.n);
+					tmpReturn.data.p = malloc(sizeof(Byte) * a->data.n);
 					break;
 				case STRING:
-					tmpReturn.data.p = malloc(sizeof(char*) * b->data.n);
+					tmpReturn.data.p = malloc(sizeof(char*) * a->data.n);
 					break;
 				case POINTER:
-					tmpReturn.data.p = malloc(sizeof(void*) * b->data.n);
+					tmpReturn.data.p = malloc(sizeof(void*) * a->data.n);
 					break;
 				}
+				pcNext += 2;
 				break;
 			}
 			
 			r = &tmpReturn;
-			
-			pcNext += 2;
 			
 			break;
 //MFREE			
