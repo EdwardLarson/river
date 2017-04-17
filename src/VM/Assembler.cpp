@@ -466,6 +466,15 @@ Data_Object Assembler::read_literal(const std::string& literal){
 	if (literal == "NIL"){
 		object.type = NIL;
 		return object;
+	}else if (literal == "TRUE"){
+		object.type = BOOL;
+		object.data.b = 1;
+		return object;
+	}
+	else if (literal == "FALSE"){
+		object.type = BOOL;
+		object.data.b = 0;
+		return object;
 	}
 	
 	IntegerType tmpInt = 0;
@@ -679,6 +688,28 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		break;
 	
 	case MLOAD:
+		if (subfunction == 'D'){
+			if (args.size() == 2)
+				return 0x02;
+			else if (args.size() == 3)
+				return 0x03;
+			else{
+				error = AERROR_WRONGARGS;
+				if (log) std::cout << "\tD" << std::endl;
+				return 0x00;
+			}
+		}else{
+			if (args.size() == 1)
+				return 0x00;
+			else if (args.size() == 2)
+				return 0x01;
+			else{
+				if (log) std::cout << "\tE" << std::endl;
+				error = AERROR_WRONGARGS;
+				return 0x00;
+			}
+		}
+		break;
 	case MSTORE:
 		if (subfunction == 'D'){
 			if (args.size() == 2)
@@ -745,7 +776,7 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		break;
 	case MALLOC:
 		if (subfunction == 'D'){
-			if (args.size() != 2){
+			if (args.size() != 1){
 				error = AERROR_WRONGARGS;
 			}
 			return 0x01;

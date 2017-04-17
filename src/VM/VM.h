@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #define WWHEEL_VERSION_MAIN	0
-#define WWHEEL_VERSION_SUB	3
+#define WWHEEL_VERSION_SUB	4
 
 #define REGISTER_NODE_SIZE 512
 #define DATA_OBJECT_SIZE 16
@@ -22,6 +22,9 @@
 #define META_STRING		0xf3
 #define META_NSTRING	0xf4
 #define META_CHECKSUM	0xf5
+
+#define P_ARRAY			0x00
+#define P_OBJECT		0X01
 
 #define UNION_CAST(x, destType) \
 	(((union {__typeof__(x) a; destType b;})x).b)
@@ -115,7 +118,7 @@ typedef struct {
 	Data data; // 8 bytes
 	Data_Type type; // 4 bytes
 	// 4 extra bytes
-	Byte aux[4]; // reserve last wo, allow first two to be used by data types
+	Byte aux[4]; // reserve last two, allow first two to be used by data types
 } Data_Object;
 
 /* Register_File

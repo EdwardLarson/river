@@ -35,7 +35,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 	Byte funct;
 	Byte returnBit;
 	
-	IntegerType offset;
+	unsigned long offset;
 	void* finalAddress;
 	
 	// temporary argument and return pointers
@@ -256,6 +256,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 		case MALLOC:
 			a = access_register(byteStream[pc + 1], &registerFile);
 			
+			clear_data(&tmpReturn);
 			tmpReturn.type = POINTER;
 			
 			switch(funct){
@@ -264,7 +265,9 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				pcNext += 1;
 				break;
 			case 1:
-				b = access_register(byteStream[pc + 2], &registerFile);
+				//b = access_register(byteStream[pc + 2], &registerFile);
+				tmpReturn.data.p = malloc(a->data.n);
+				/*
 				switch(b->type){
 				case INTEGER:
 					tmpReturn.data.p = malloc(sizeof(IntegerType) * a->data.n);
@@ -285,9 +288,12 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 					tmpReturn.data.p = malloc(sizeof(void*) * a->data.n);
 					break;
 				}
-				pcNext += 2;
+				*/
+				pcNext += 1;
 				break;
 			}
+			
+			if (log) printf("Allocated memory at %p\n", tmpReturn.data.p);
 			
 			r = &tmpReturn;
 			
@@ -310,10 +316,11 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			
 			pcNext += 1;
 			
-			break;
+			pc = pcNext;
+			continue;
 //MLOAD
 		case MLOAD:
-			a = access_register(byteStream[pc + 1], &registerFile);
+			a = access_register(byteStream[pc + 1], &registerFile); // registerP
 			
 			pcNext += 1;
 			
@@ -322,9 +329,8 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			finalAddress = 0x00;
 			
 			switch(funct){
-			case 1: // load offset Data_Object to r
-				b = access_register(byteStream[pc + 2], &registerFile);
-				offset = b->data.n;
+			case 1: // load offset Data_Object to r			
+				offset = access_register(byteStream[pc + 2], &registerFile)->data.n;
 				
 				pcNext += 1;
 				
@@ -338,16 +344,27 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				break;
 				
 			case 3: // pure data load with offset
-				b = access_register(byteStream[pc + 2], &registerFile);
-				offset = b->data.n;
+				
+				offset = access_register(byteStream[pc + 3], &registerFile)->data.n;
 				
 				pcNext += 1;
 				//no break, fall into next case
 				case 2: // pure data load
 				clear_data(&tmpReturn);
-				tmpReturn.type = access_register(byteStream[pc + 2], &registerFile)->type;
+				
+				b = access_register(byteStream[pc + 2], &registerFile); //registerRef
+				tmpReturn.type = b->type;
+				
+				pcNext += 1;
+				
+				if (log){
+					printf("original pointer = %p\n", a->data.p);
+					printf("offset = %ld\n", offset);
+				}
 				
 				finalAddress = void_ptr_add(a->data.p, offset); // literal offset values are useful for, say, object member loading
+				
+				if (log) printf("finalAddress = %p\n", finalAddress);
 				
 				switch(tmpReturn.type){
 				case INTEGER:
@@ -424,32 +441,55 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			//IntegerType 
 			offset = 0;
 			
-			a = access_register(pc + 1, &registerFile); // registerP
-			b = access_register(pc + 2, &registerFile); // registerV
+			a = access_register(byteStream[pc + 1], &registerFile); // registerP
+			b = access_register(byteStream[pc + 2], &registerFile); // registerV
 			
 			pcNext += 2;
 		
 			switch(funct){
+			// DATA_OBJECT allocation
 			case 1:
-				offset = fetch_data(&byteStream[pc + 3])->data.n;
+				offset = access_register(byteStream[pc + 3], &registerFile)->data.n;
+				
 				pcNext += 1;
+				
+				
 				
 				// no break, fall into next case
 				case 0:
+				
+				if (log){
+					printf("original pointer = %p\n", a->data.p);
+					printf("offset = %ld\n", offset);
+				}
+				
+				offset *= DATA_OBJECT_SIZE;
+				
+				finalAddress = void_ptr_add(a->data.p, offset);
+				
+				if (log) printf("finalAddress = %p\n", finalAddress);
 				
 				// write
 				*((Data_Object*) finalAddress) = *b;
 				
 				break;
+			// Direct allocation
 			case 3:
-				offset = fetch_data(&byteStream[pc + 3])->data.n;
+				offset = access_register(byteStream[pc + 3], &registerFile)->data.n;
 				
 				pcNext += 1;
 				
 				// no break, fall into next case
 				case 2:
 				
-				finalAddress = void_ptr_add(a->data.p, offset);
+				if (log){
+					printf("original pointer = %p\n", a->data.p);
+					printf("offset = %ld\n", offset);
+				}
+				
+				finalAddress = void_ptr_add(a->data.p, offset); /// offset should be block (size of data type) offset or direct offset?
+				
+				if (log) printf("finalAddress = %p\n", finalAddress);
 				
 				// write
 				switch(b->type){
@@ -476,7 +516,9 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				break;
 			}
 			
-			break;
+			pc = pcNext;
+			
+			continue;
 //NOT
 		case NOT:
 			break;

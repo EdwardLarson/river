@@ -1,6 +1,24 @@
-MOVE 5 > $a
-MOVE #zero > $defaultint
-MALLOC $defaultint > $ptr
-MSTORE $a $ptr
-MLOAD $ptr $defaultint > $b
-PRINT $b
+MOVE TRUE > $a
+MOVE FALSE > $b
+MOVE 2 > $blocksize
+MALLOC_D $blocksize > $ptr
+PRINT $ptr
+PRINT_B
+SETDO $offset
+MOVE #zero
+MSTORE_D $ptr $a $offset
+MOVE 1
+PRINT $offset
+PRINT_B
+MSTORE_D $ptr $b $offset
+MOVE #zero > $aAfter
+MOVE #zero > $bAfter
+MOVE 1 > $offset
+MLOAD_D $ptr $a $offset > $bAfter
+MOVE #zero
+MLOAD_D $ptr $a $offset > $aAfter
+PRINT $aAfter
+PRINT_B
+PRINT $bAfter
+PRINT_B
+HALT
