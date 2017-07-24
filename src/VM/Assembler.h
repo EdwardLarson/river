@@ -22,8 +22,9 @@
 * state for assembling.
 * 
 * argument delimiters
-* '$' : register
-* '#' : persistent register
+* '$' : local register
+* '#' : pass register (args or returns)
+* '@' : global register
 * ':' for labels
 * 
 * sample assembly
@@ -48,7 +49,7 @@ private: typedef enum {
 	A_REGISTER_P,
 	A_ADDRESS,
 	A_STRING,
-	A_LABEL
+	A_LABEL,
 } ArgType;
 private: typedef struct {
 	ArgType type;
@@ -69,7 +70,7 @@ public:
 	void set_log(bool enableLogging){log = enableLogging;};
 	
 private:
-	typedef enum {AERROR_NONE, AERROR_WRONGARGS, AERROR_ARGTYPES, AERROR_NOPCODE, AERROR_REGLIMIT, AERROR_BADRET} AssemblerError;
+	typedef enum {AERROR_NONE, AERROR_WRONGARGS, AERROR_ARGTYPES, AERROR_NOPCODE, AERROR_REGLIMIT, AERROR_BADRET, AERROR_REGBOUNDS} AssemblerError;
 	// for each label, stores the actual pointer for that label and a list of every instruction which references this label
 	typedef std::map<std::string, std::pair<PCType, std::list<PCType> > > LabelMap; 
 	
@@ -90,32 +91,40 @@ private:
 	Byte nextFreePersistent;
 	std::stack<Byte> freeStack;
 	
+	PCType lastOpcodePosition;
+	
 	//FUNCTIONS
 	
 	// assembler state functions
 	Byte get_register(const std::string& identifier, bool persistent=false);
-	void define_label(const std::string& label);
+	void define_label(const std::string& label); ///
 	void add_label_ref(const std::string& label);
 	void push_frame();
 	void pop_frame();
 	
 	// output/writing functions
-	void write_byte(Byte b);
+	void write_byte(Byte b); ///
 	void assemble_instruction(const std::string& instruction);
 	void assemble_argument(const Argument& arg);
 	void assemble_labels();
+	void recordOpcodePosition(); ///
+	void overwriteReturnBit(bool returnBit); ///
 	
 	// input/reading functions
+	bool assemble_line(const std::string& line); ///
+	Byte convert_register(const std::string& registerName); ///
+	
 	Byte 					read_opcode(const std::string& instruction, unsigned int& index, char& subfunction);
 	std::vector<Argument>	read_args(const std::string& instruction, unsigned int& index);
 	Argument 				read_argument(const std::string& instruction, unsigned int& index);
 	Byte 					read_returns(const std::string& instruction, unsigned int& index, Byte& returnReg);
-	Data_Object 			read_literal(const std::string& literal);
+	Data_Object 			read_literal(const std::string& literal); ///
 	
 	// utility functions
-	Byte get_opcode_hex(std::string& opcode) const;
+	Byte get_opcode_hex(const std::string& opcode) const; ///
 	Byte get_funct(Byte opcodeShifted, std::vector<Argument> args, char subfunction);
 	unsigned int char_to_int(char c);
+	unsigned int string_to_int(const std::string& s);
 };
 
 #endif

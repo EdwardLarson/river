@@ -5,10 +5,6 @@ Assembler::Assembler(std::istream& instrm): inStream(instrm), byteVec() {
 	nextFree = 0;
 	nextFreePersistent = NUM_REGISTERS - NUM_PERSISTENT_REGISTERS;
 	
-	// add mapping to persistent register 0 for "$zero"
-	Byte zeroReg = get_register("zero", true);
-	
-	if (log) std::cout << "\tzero reg: " << (int) zeroReg << std::endl;
 }
 
 // Assemble the given input into bytecode. Outputs to the given output stream.
@@ -35,7 +31,9 @@ bool Assembler::assemble(){
 		if (*line.rbegin() == '\r'){
 			line.erase(line.size() - 1, 1);
 		}
-		assemble_instruction(line);
+		
+		if (log) std::cout << "Line " << line << std::endl;
+		assemble_line(line);
 		
 		switch(error){
 		case AERROR_NONE:
@@ -56,6 +54,8 @@ bool Assembler::assemble(){
 		case AERROR_ARGTYPES:
 			std::cout << "error [" << lineCount << "]: incorrect argument types" << std::endl;
 			return false;
+		case AERROR_REGBOUNDS:
+			std::cout << "error [" << lineCount << "]: register number out of bounds" << std::endl;
 		}
 		
 		error = AERROR_NONE;
@@ -198,6 +198,7 @@ void Assembler::pop_frame(){
 
 // write_byte: Writes a byte to output
 void Assembler::write_byte(Byte b){
+	if (log) std::cout << " {writing byte<" << std::hex << (unsigned int) b << std::dec << ">} ";
 	byteVec.push_back(b);
 }
 
@@ -337,9 +338,223 @@ void Assembler::assemble_labels(){
 	}
 }
 
+void Assembler::recordOpcodePosition(){
+	lastOpcodePosition = (PCType) byteVec.size();
+}
+	
+void Assembler::overwriteReturnBit(bool returnBit){
+	if (lastOpcodePosition >= (PCType) byteVec.size()) return;
+	
+	if (returnBit){
+		byteVec[lastOpcodePosition] |= 0x80; 
+	}else{
+		byteVec[lastOpcodePosition] &= 0x7F; 
+	}
+}
+
 //==========================================================
 // INPUT/READING
 //==========================================================
+
+bool Assembler::assemble_line(const std::string& line){
+	int lineEnd = line.find(';');
+	if (lineEnd == std::string::npos) lineEnd = line.size();
+
+	// move tokenBegin to beginning of opcode
+	int tokenBegin = 0;
+	int tokenLength = 0;
+	
+	while (tokenBegin < lineEnd && line[tokenBegin] == ' '){
+		tokenBegin++;
+	}
+	
+	// check if a label is being defined
+	if (line[tokenBegin] == ':'){
+		// add label
+		while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != ' ') tokenLength++;
+		define_label(line.substr(tokenBegin + 1, tokenLength - 1));
+		
+		if (log) std::cout << "Label read: " << line.substr(tokenBegin + 1, tokenLength - 1) << std::endl;
+		
+		return true;
+	}
+	
+	// get opcode
+	while (tokenBegin + tokenLength < lineEnd 
+		&& !(line[tokenBegin + tokenLength] == '(' || line[tokenBegin + tokenLength] == ' ')){
+			tokenLength++;
+	}
+	
+	Byte opcode = get_opcode_hex(line.substr(tokenBegin, tokenLength));
+	if (log) std::cout << "Instruction read: " << line.substr(tokenBegin, tokenLength) << " as opcode " << std::hex << ((unsigned int) opcode >> 2) << std::dec << std::endl;
+	
+	// get funct
+	Byte funct;
+	if (line[tokenBegin + tokenLength] == '('){
+		++tokenLength;
+		while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] == ' ') tokenLength++;
+		funct = line[tokenBegin + tokenLength] - 48;
+		while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != ')') tokenLength++;
+		tokenLength++;
+	}else{
+		funct = 0x00;
+	}
+	
+	if (log) std::cout << "Funct read: " << (unsigned int) funct << std::endl;
+	
+	// get full opcode
+	Byte fullOpcode = (opcode) | funct;
+	
+	if (log) std::cout << "Full opcode: " << std::hex << (unsigned int) fullOpcode << std::dec << std::endl;
+	
+	// store opcode location so the returnbit can be overwritten
+	recordOpcodePosition();
+	// write opcode
+	write_byte(fullOpcode);
+	
+	// get to beginning of arguments
+	
+	while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] == ' ') tokenLength++;
+	
+	tokenBegin = tokenLength;
+	tokenLength = 0;
+	
+	// for each argument:
+	while (tokenBegin < lineEnd && line[tokenBegin] != '>'){
+		
+		Byte convertedRegister;
+		
+		// get type of argument
+		switch(line[tokenBegin]){
+		case '$': // local register
+			while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != ' ') tokenLength++;
+			
+			convertedRegister = convert_register(line.substr(tokenBegin + 1, tokenLength - 1));
+			if (log) std::cout << "Register read: " << line.substr(tokenBegin + 1, tokenLength - 1) << " and converted to " << (unsigned int) convertedRegister << std::endl;
+			
+			write_byte(convertedRegister);
+			break;
+		case ':': // label
+			while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != ' ') tokenLength++;
+			
+			// mark a label reference here and fill in empty bits
+			add_label_ref(line.substr(tokenBegin + 1, tokenLength - 1));
+			for (unsigned int i = 0; i < sizeof(PCType); i++){
+				write_byte(0x00);
+			}
+			
+			if (log) std::cout << "Label argument read: " << line.substr(tokenBegin + 1, tokenLength - 1) << std::endl;
+			
+			break;
+		case '"': // string literal
+		
+			// scan to next double quotes
+			while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != '"') tokenLength++;
+			
+			break;
+		default: // assume it is a literal
+			while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != ' ') tokenLength++;
+			
+			if (log) std::cout << "Read literal: " << line.substr(tokenBegin, tokenLength) << std::endl;
+			
+			// convert literal to a Data_Object stored in a cast union object
+			union {Data_Object asObject; Byte asBytes[sizeof(Data_Object)];} castUnion;
+			castUnion.asObject = read_literal(line.substr(tokenBegin, tokenLength));
+			
+			if (log) std::cout << "Data_Object in cast union as: " << castUnion.asObject.data.n << std::endl;
+			
+			// write Data_Object's bytes 
+			for (unsigned int i = 0; i < sizeof(Data_Object); i++){
+				write_byte(castUnion.asBytes[i]);
+				if (log) std::cout << "\twriting Data_Object byte " << std::hex << (unsigned int) castUnion.asBytes[i] << std::dec << std::endl;
+			}
+			
+			break;
+		}
+		
+		// go to next argument
+		while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] == ' ') tokenBegin++;
+		
+		tokenBegin = tokenBegin + tokenLength;
+		tokenLength = 0;
+	}
+	
+	if (log) std::cout << "tokenBegin < lineEnd: " << (tokenBegin < lineEnd) << std::endl;
+	
+	// read return register
+	tokenBegin++;
+	while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] == ' ') tokenBegin++;
+	
+	tokenBegin = tokenBegin + tokenLength;
+	tokenLength = 0;
+	
+	if (tokenBegin + tokenLength < lineEnd && line[tokenBegin] != '$'){ // incorrect returns
+		std::cout << "HERE" << std::endl;
+		error = AERROR_BADRET;
+		return false;
+	}
+	
+	while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != ' ') tokenLength++;
+	
+	if (tokenBegin < lineEnd && log) std::cout << "Return register read: " << line.substr(tokenBegin + 1, tokenLength - 1) << std::endl;
+	
+	if (tokenBegin < lineEnd){
+		write_byte(convert_register(line.substr(tokenBegin + 1, tokenLength - 1)));
+		overwriteReturnBit(true);
+	}else{
+		overwriteReturnBit(false);
+	}
+	
+	return true;
+}
+
+Byte Assembler::convert_register(const std::string& registerName){
+	Byte registerID;
+	
+	// find beginning of parentheses
+	int parenthesesBegin = registerName.find('(');
+	// if no parentheses found, register is a local register
+	if (parenthesesBegin == std::string::npos){
+		registerID = (Byte) string_to_int(registerName);
+		if (registerID >= 64){
+			error = AERROR_REGBOUNDS;
+			return 0xA0;
+		}else{
+			return registerID;
+		}
+	}
+	
+	int parenthesesEnd = registerName.find(')');
+	if (parenthesesEnd == std::string::npos) return 0xE0; // $zero by default in case of error
+	
+	// the raw register ID found in the parentheses
+	std::string registerID_raw = registerName.substr(parenthesesBegin + 1, parenthesesEnd - parenthesesBegin - 1);
+	registerID = (Byte) string_to_int(registerID_raw);
+	if (registerID >= 32){
+		error = AERROR_REGBOUNDS;
+		return 0xA0;
+	}
+	
+	std::string registerType = registerName.substr(0, parenthesesBegin);
+	
+	if (log) std::cout << "Register type read as: " << registerType << " for raw register " << (registerID_raw) << std::endl;
+	
+	if (registerType == "ARG")	{
+		return 0x40 | registerID;
+		
+	}else if (registerType == "RETURN") {
+		return 0x60 | registerID;
+		
+	}else if (registerType == "GLOBAL") {
+		return 0x80 | registerID;
+		
+	}else if (registerType == "SFR") {
+		return 0xA0 | registerID;
+		
+	}else{
+		return 0xA0; // $zero by default
+	}
+}
 
 // read_opcode: Read an assembly opcode from an instruction.
 // Returns the byte opcode without correct returnBit or funct bits
@@ -460,6 +675,8 @@ Byte Assembler::read_returns(const std::string& instruction, unsigned int& index
 // read_literal: Reads a literal numerical value from an 
 // instruction. Returns a Data_Object wrapping the value.
 Data_Object Assembler::read_literal(const std::string& literal){
+	
+	
 	Data_Object object;
 	object.type = INTEGER;
 	
@@ -515,6 +732,8 @@ Data_Object Assembler::read_literal(const std::string& literal){
 		object.data.d = tmpRat;
 	}else{
 		object.data.n = tmpInt;
+		
+		if (log) std::cout << "converted literal: " << tmpInt << std::endl;
 	}
 	
 	return object;
@@ -524,7 +743,7 @@ Data_Object Assembler::read_literal(const std::string& literal){
 // UTILITY
 //==========================================================
 
-Byte Assembler::get_opcode_hex(std::string& opcode) const{
+Byte Assembler::get_opcode_hex(const std::string& opcode) const{
 		
 	if(opcode == "ABS"){
 		return 0x00 << 2;
@@ -812,4 +1031,15 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 
 unsigned int Assembler::char_to_int(char c){
 	return ((unsigned int) c) - 48;
+}
+
+unsigned int Assembler::string_to_int(const std::string& s){
+	unsigned int result = 0;
+	
+	for (unsigned int i = 0;i < s.size(); i++){
+		result *= 10;
+		result += (unsigned int) s[i] - 48;
+	}
+	
+	return result;
 }

@@ -127,6 +127,7 @@ each register has an associated depth (maximum determined
 by FRAME_STACK_SIZE) representing the current position in
 the runtime register stack. Also contains 
 */
+/*
 typedef struct {
 	Data_Object registers[NUM_REGISTERS][FRAME_STACK_SIZE]; // depth in persistent registers is wasted, but could be reused maybe as temp?
 	Byte defaultOutput;
@@ -134,6 +135,17 @@ typedef struct {
 	
 	PCType pcStack[PC_STACK_SIZE];
 	unsigned int pcTop;
+} Register_File;
+*/
+typedef struct Register_File_{
+	Data_Object localRegisters[128][FRAME_STACK_SIZE];
+	unsigned int depth;
+	
+	Data_Object globalRegisters[64];
+	
+	PCType pcStack[PC_STACK_SIZE];
+	unsigned int pcTop;
+	
 } Register_File;
 
 typedef struct {
@@ -170,7 +182,9 @@ char* get_object_cstring(Data_Object* stringObject);
 
 // Register file functions
 void initialize_register_file(Register_File* rFile);
-Data_Object* access_register(Byte reg, Register_File* rf);
+///Data_Object* access_register(Byte reg, Register_File* rf);
+const Data_Object* read_register(Byte reg, Register_File* rf);
+void write_register(Byte reg, Register_File* rf, const Data_Object* data);
 void write_default_output(const Data_Object* object, Register_File* rf);
 void push_pc(PCType* pc_entry, Register_File* rf);
 PCType pop_pc(Register_File* rf);

@@ -131,6 +131,7 @@ int main(int argc, char** argv){
 		bool givenInput = false;
 		bool givenOutput = false;
 		bool log = false;
+		bool printBytes = false;
 		
 		std::string currentArg;
 		
@@ -152,6 +153,10 @@ int main(int argc, char** argv){
 				
 				outStream = fileOut;
 				givenOutput = true;
+			}else if(currentArg == "-log"){
+				log = true;
+			}else if(currentArg == "-print-bytes"){
+				printBytes = true;
 			}
 		}
 		
@@ -170,6 +175,7 @@ int main(int argc, char** argv){
 				}
 				
 				Assembler assembler(inStream);
+				assembler.set_log(log);
 				
 				assembler.assemble();
 				inStream.close();
@@ -178,11 +184,15 @@ int main(int argc, char** argv){
 				byteStream.insert(byteStream.end(), assembler.get_bytecode().begin(), assembler.get_bytecode().end());
 			}
 			
+			if (printBytes) std::cout << std::hex;
+			
 			// print tokenstream from all input files
 			for (std::vector<Byte>::const_iterator iter = byteStream.begin(); iter != byteStream.end(); ++iter){
-				(*outStream) << *iter;
+				if (givenOutput) (*outStream) << *iter;
+				if (printBytes) std::cout << (unsigned int) *iter << '-';
 			}
-			(*outStream) << std::endl;
+			(*outStream) << std::endl; 
+			if (printBytes) std::cout << std::dec << std::endl;
 		}
 	}else if (funct == "run"){
 		// -i <input file(s)> [-safe -log <logging file>]
@@ -222,7 +232,9 @@ int main(int argc, char** argv){
 				}
 				
 				inStream.seekg(0, inStream.end);
+				// subtract 1 from the length to remove the endline character (used to find the end of the file)
 				PCType progLength = inStream.tellg();
+				progLength--;
 				inStream.seekg(0, inStream.beg);
 				
 				Byte* byteStream = new Byte[progLength];

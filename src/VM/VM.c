@@ -11,6 +11,10 @@
 #endif
 
 void execute(const Byte* byteStream, const PCType* length, Byte log){
+	if (log){
+		printf("Executing %ld bytes...\n", *length);
+	} 
+	
 	Meta_Data metaData;
 	PCType pc = read_metadata(byteStream, length, &metaData);
 	
@@ -71,7 +75,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 		switch (opcode){
 //ABS
 		case ABS:
-			a = access_register(byteStream[pc + 1], &registerFile);
+			a = read_register(byteStream[pc + 1], &registerFile);
 			switch(a->type){
 			case INTEGER:
 				if (a->data.n < 0){
@@ -98,12 +102,12 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 		case ADD:
 			switch(funct){
 			case 0: // two registers
-				a = access_register(byteStream[pc + 1], &registerFile);
-				b = access_register(byteStream[pc + 2], &registerFile);
+				a = read_register(byteStream[pc + 1], &registerFile);
+				b = read_register(byteStream[pc + 2], &registerFile);
 				pcNext += 2;
 				break;
 			case 1: // one register and a constant
-				a = access_register(byteStream[pc + 1], &registerFile);
+				a = read_register(byteStream[pc + 1], &registerFile);
 				b = fetch_data(&byteStream[pc + 2]);
 				pcNext += 1 + DATA_OBJECT_SIZE;
 				break;
@@ -132,7 +136,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 		case BRANCH:
 			pcNext += 1 + sizeof(PCType);
 			// check given register
-			if (access_register(byteStream[pc + 1], &registerFile)->data.b){
+			if (read_register(byteStream[pc + 1], &registerFile)->data.b){
 				
 				switch(funct){
 				case 1: // linked branch
@@ -214,20 +218,20 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			
 			switch(funct){
 			case 0: //GG
-				a = access_register(byteStream[pc + 1], &registerFile);
-				b = access_register(byteStream[pc + 2], &registerFile);
+				a = read_register(byteStream[pc + 1], &registerFile);
+				b = read_register(byteStream[pc + 2], &registerFile);
 				
 				pcNext += 2;
 				break;
 			case 1: //GV
-				a = access_register(byteStream[pc + 1], &registerFile);
+				a = read_register(byteStream[pc + 1], &registerFile);
 				b = fetch_data(&byteStream[pc + 2]);
 				
 				pcNext += 1 + DATA_OBJECT_SIZE;
 				break;
 			case 2: //VG
 				a = fetch_data(&byteStream[pc + 1]);
-				b = access_register(byteStream[pc + DATA_OBJECT_SIZE + 1], &registerFile);
+				b = read_register(byteStream[pc + DATA_OBJECT_SIZE + 1], &registerFile);
 				
 				pcNext += 1 + DATA_OBJECT_SIZE;
 				break;
@@ -254,7 +258,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			break;
 //MALLOC
 		case MALLOC:
-			a = access_register(byteStream[pc + 1], &registerFile);
+			a = read_register(byteStream[pc + 1], &registerFile);
 			
 			clear_data(&tmpReturn);
 			tmpReturn.type = POINTER;
@@ -300,7 +304,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			break;
 //MFREE			
 		case MFREE:
-			a = access_register(byteStream[pc + 1], &registerFile);
+			a = read_register(byteStream[pc + 1], &registerFile);
 			
 			switch(funct){
 			case 0: 
@@ -320,7 +324,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			continue;
 //MLOAD
 		case MLOAD:
-			a = access_register(byteStream[pc + 1], &registerFile); // registerP
+			a = read_register(byteStream[pc + 1], &registerFile); // registerP
 			
 			pcNext += 1;
 			
@@ -330,7 +334,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			
 			switch(funct){
 			case 1: // load offset Data_Object to r			
-				offset = access_register(byteStream[pc + 2], &registerFile)->data.n;
+				offset = read_register(byteStream[pc + 2], &registerFile)->data.n;
 				
 				pcNext += 1;
 				
@@ -345,14 +349,14 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				
 			case 3: // pure data load with offset
 				
-				offset = access_register(byteStream[pc + 3], &registerFile)->data.n;
+				offset = read_register(byteStream[pc + 3], &registerFile)->data.n;
 				
 				pcNext += 1;
 				//no break, fall into next case
 				case 2: // pure data load
 				clear_data(&tmpReturn);
 				
-				b = access_register(byteStream[pc + 2], &registerFile); //registerRef
+				b = read_register(byteStream[pc + 2], &registerFile); //registerRef
 				tmpReturn.type = b->type;
 				
 				pcNext += 1;
@@ -405,11 +409,12 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			
 			switch(funct){
 			case 0: // move one register's value to another
-				r = access_register(byteStream[pc + 1], &registerFile); // registerO
+				r = read_register(byteStream[pc + 1], &registerFile); // registerO
 				pcNext += 1;
 				break;
 			case 1: // load a literal value to a register
-				r = fetch_data(&byteStream[pc + 1]);
+				tmpReturn = read_bytes(&byteStream[pc + 1]);
+				r = &tmpReturn;
 				pcNext += DATA_OBJECT_SIZE;
 				break;
 			case 2: // load a string literal to a register
@@ -441,15 +446,15 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			//IntegerType 
 			offset = 0;
 			
-			a = access_register(byteStream[pc + 1], &registerFile); // registerP
-			b = access_register(byteStream[pc + 2], &registerFile); // registerV
+			a = read_register(byteStream[pc + 1], &registerFile); // registerP
+			b = read_register(byteStream[pc + 2], &registerFile); // registerV
 			
 			pcNext += 2;
 		
 			switch(funct){
 			// DATA_OBJECT allocation
 			case 1:
-				offset = access_register(byteStream[pc + 3], &registerFile)->data.n;
+				offset = read_register(byteStream[pc + 3], &registerFile)->data.n;
 				
 				pcNext += 1;
 				
@@ -475,7 +480,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				break;
 			// Direct allocation
 			case 3:
-				offset = access_register(byteStream[pc + 3], &registerFile)->data.n;
+				offset = read_register(byteStream[pc + 3], &registerFile)->data.n;
 				
 				pcNext += 1;
 				
@@ -527,13 +532,17 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			break;
 //POPFRAME
 		case POPFRAME:
-			--registerFile.depth;
+			--(registerFile.depth);
+			
+			if (log) printf("popped to register file depth %d\n", registerFile.depth);
 			
 			pc = pcNext;
 			continue;
 //PUSHFRAME
 		case PUSHFRAME:
-			++registerFile.depth;
+			++(registerFile.depth);
+			
+			if (log) printf("pushed to register file depth %d\n", registerFile.depth);
 			
 			pc = pcNext;
 			continue;
@@ -545,7 +554,7 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			if (log) printf("PRINTING\n");
 			switch(funct){
 			case 0: // print register
-				a = access_register(byteStream[pc + 1], &registerFile);
+				a = read_register(byteStream[pc + 1], &registerFile);
 				pcNext += 1;
 				break;
 			case 1: // print constant object
@@ -592,8 +601,12 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			break;
 //SETDO
 		case SETDO:
-			registerFile.defaultOutput = byteStream[pc + 1];
+			//registerFile.defaultOutput = byteStream[pc + 1];
 			pcNext += 1;
+			
+			
+			printf ("SETDO FOUND");
+			return;
 			
 			pc = pcNext;
 			continue;
@@ -609,8 +622,11 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 		// after switch: pc should point to either last (return value) argument, or the next instruction
 		// this is inferred from the return bit in the instruction
 		
+		// TO-DO: RETURN BIT
+		
 		if (returnBit){ // to returned register
-			*access_register(byteStream[pcNext], &registerFile) = *r;
+			write_register(byteStream[pcNext], &registerFile, r);
+			///*access_register(byteStream[pcNext], &registerFile) = *r;
 			// increment pc past return register
 			pc = pcNext + 1;
 		}else{ // to defaultOutput
@@ -624,13 +640,15 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 // BYTESTREAM MANIPULATION
 //==========================================================
 
+
 const Data_Object* fetch_data(const Byte* rawBytes){
 	return (Data_Object*) rawBytes;
 }
 
+
 Data_Object read_bytes(const Byte* rawBytes){
-	union{Data_Object asObject; Byte asBytes[DATA_OBJECT_SIZE];} castUnion;
-	for (unsigned int i = 0; i < DATA_OBJECT_SIZE; i++){
+	union{Data_Object asObject; Byte asBytes[sizeof(Data_Object)];} castUnion;
+	for (unsigned int i = 0; i < sizeof(Data_Object); i++){
 		castUnion.asBytes[i] = rawBytes[i];
 	}
 	
@@ -737,20 +755,86 @@ void initialize_register_file(Register_File* rFile){
 	// initialize #zero to always 0
 	Data_Object zeroObject = create_object_INTEGER(0);
 	
-	rFile->registers[NUM_REGISTERS - NUM_PERSISTENT_REGISTERS][0] = zeroObject;
+	rFile->globalRegisters[0] = zeroObject;
 	rFile->pcTop = 0;
 }
-
+/*
 Data_Object* access_register(Byte reg, Register_File* rf){
-	unsigned char depth = 0;
-	// get depth if this is a non-persistent register
-	if (reg < (NUM_REGISTERS - NUM_PERSISTENT_REGISTERS)) depth = rf->depth;
-	
-	return &(rf->registers[reg][depth]);
+	switch(reg & 0xE0){ // get first 3 bits
+	case 0x80: // args pass
+		return &rf->localRegisters[reg & 0x1F][rf->depth + 1];
+		break;
+	case 0xA0: // returns pass
+		return &rf->localRegisters[reg & 0x1F][rf->depth - 1];
+		break;
+		
+	case 0xC0: // globals
+	case 0xE0: // special purpose
+		return &rf->globalRegisters[reg & 0x3F];
+		break;
+		
+	default: // local registers
+		return &rf->localRegisters[reg][rf->depth];
+		break;
+		
+	}
+}
+*/
+
+const Data_Object* read_register(Byte reg, Register_File* rf){
+	switch(reg & 0xE0){ // get first 3 bits
+	case 0x40: // args read
+		return &rf->localRegisters[reg & 0x7F][rf->depth];
+		break;
+	case 0x60: // returns read
+		return &rf->localRegisters[reg & 0x7F][rf->depth];
+		break;
+		
+	case 0x80: // globals
+	case 0xA0: // special purpose
+		return &rf->globalRegisters[reg & 0x1F];
+		break;
+		
+	case 0x00: // local registers
+	case 0x20:
+		return &rf->localRegisters[reg & 0x7F][rf->depth];
+		break;
+		
+	default:
+		printf("attempted read from nonexistant register\n");
+		break;
+		
+	}
+}
+
+void write_register(Byte reg, Register_File* rf, const Data_Object* data){
+	switch(reg & 0xE0){ // get first 3 bits
+	case 0x40: // args pass
+		rf->localRegisters[reg & 0x7F][rf->depth + 1] = *data;
+		break;
+	case 0x60: // returns pass
+		rf->localRegisters[reg & 0x7F][rf->depth - 1] = *data;
+		break;
+		
+	case 0x80: // globals
+	case 0xA0: // special purpose
+		rf->globalRegisters[reg & 0x1F] = *data;
+		break;
+		
+	case 0x00: // local registers
+	case 0x20:
+		rf->localRegisters[reg & 0x7F][rf->depth] = *data;
+		break;
+		
+	default: // 0xC0, 0xE0 unused
+		printf("attempted write to nonexistant register\n");
+		break;
+		
+	}
 }
 
 void write_default_output(const Data_Object* object, Register_File* rf){
-	*access_register(rf->defaultOutput, rf) = *object;
+	//*access_register(rf->defaultOutput, rf) = *object;
 }
 
 void push_pc(PCType* pc_entry, Register_File* rf){
@@ -785,10 +869,10 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 	unsigned int nstrings;
 	
 	while (pc < *length && byteStream[pc] != META_END){
-		///printf("meta byte\n"); /// DEBUG
+		printf("meta byte <%x>\n", byteStream[pc]); /// DEBUG
 		switch(byteStream[pc]){
 		case META_BEGIN:
-			///printf("\tMETA_BEGIN found\n"); /// DEBUG
+			printf("\tMETA_BEGIN found\n"); /// DEBUG
 			pc += 1;
 			break;
 		case META_VERSION:
