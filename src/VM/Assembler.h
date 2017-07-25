@@ -108,7 +108,6 @@ private:
 	void assemble_argument(const Argument& arg);
 	void assemble_labels();
 	void recordOpcodePosition(); ///
-	void overwriteReturnBit(bool returnBit); ///
 	
 	// input/reading functions
 	bool assemble_line(const std::string& line); ///

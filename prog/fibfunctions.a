@@ -1,0 +1,24 @@
+MOVE(1) 9 > $ARG(0)
+PUSHFRAME(0)
+JUMP(1) :FIB ; call fib(n = 3)
+POPFRAME(0)
+PRINT(0) $RETURN(0)
+HALT(0)
+:FIB; computes the nth fibonacci number (n is input to ARG(0))
+MOVE(0) $SFR(0) > $0; prev = 0
+MOVE(1) 1 > $1; current = 1
+MOVE(1) 1 > $2; i = 1
+LT(2) 0 $ARG(0) > $3; lt = 0 < n
+BRANCH(0) $3 :FIBLOOP; if 0 < n:
+MOVE(0) $SFR(0) > $RETURN(0) ; return 0 if 0 >= n
+RETURN
+:FIBLOOP
+ADD(1) $2 1 > $2; i++
+ADD(0) $0 $1 > $4; tmp = current + prev
+MOVE(0) $1 > $0; prev = current
+MOVE(0) $4 > $1; current = tmp
+LT(0) $2 $ARG(0) > $3; i < n
+BRANCH(0) $3 :FIBLOOP
+:FIBRETURN
+MOVE(0) $1 > $RETURN(0); return current
+RETURN(0)

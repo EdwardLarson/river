@@ -341,16 +341,6 @@ void Assembler::assemble_labels(){
 void Assembler::recordOpcodePosition(){
 	lastOpcodePosition = (PCType) byteVec.size();
 }
-	
-void Assembler::overwriteReturnBit(bool returnBit){
-	if (lastOpcodePosition >= (PCType) byteVec.size()) return;
-	
-	if (returnBit){
-		byteVec[lastOpcodePosition] |= 0x80; 
-	}else{
-		byteVec[lastOpcodePosition] &= 0x7F; 
-	}
-}
 
 //==========================================================
 // INPUT/READING
@@ -500,9 +490,6 @@ bool Assembler::assemble_line(const std::string& line){
 	
 	if (tokenBegin < lineEnd){
 		write_byte(convert_register(line.substr(tokenBegin + 1, tokenLength - 1)));
-		overwriteReturnBit(true);
-	}else{
-		overwriteReturnBit(false);
 	}
 	
 	return true;
@@ -746,97 +733,94 @@ Data_Object Assembler::read_literal(const std::string& literal){
 Byte Assembler::get_opcode_hex(const std::string& opcode) const{
 		
 	if(opcode == "ABS"){
-		return 0x00 << 2;
+		return ABS << 2;
 	}
 	else if(opcode == "ADD"){
-		return 0x01 << 2;
+		return ADD << 2;
 	}
 	else if(opcode == "AND"){
-		return 0x02 << 2;
+		return AND << 2;
 	}
 	else if(opcode == "BRANCH"){
-		return 0x03 << 2;
+		return BRANCH << 2;
 	}
 	else if(opcode == "CALL"){
-		return 0x04 << 2;
+		return CALL << 2;
 	}
 	else if(opcode == "DIV"){
-		return 0x05 << 2;
+		return DIV << 2;
 	}
 	else if(opcode == "EQ"){
-		return 0x06 << 2;
+		return EQ << 2;
 	}
 	else if(opcode == "GT"){
-		return 0x07 << 2;
+		return GT << 2;
 	}
 	else if(opcode == "HALT"){
-		return 0x08 << 2;
+		return HALT << 2;
 	}
 	else if(opcode == "INPUT"){
-		return 0x09 << 2;
+		return INPUT << 2;
 	}
 	else if(opcode == "JUMP"){
-		return 0x0A << 2;
+		return JUMP << 2;
 	}
 	else if(opcode == "LSH"){
-		return 0x0B << 2;
+		return LSH << 2;
 	}
 	else if(opcode == "LT"){
-		return 0x0C << 2;
+		return LT << 2;
 	}
 	else if(opcode == "MALLOC"){
-		return 0x0D << 2;
+		return MALLOC << 2;
 	}
 	else if(opcode == "MFREE"){
-		return 0x0E << 2;
+		return MFREE << 2;
 	}
 	else if(opcode == "MLOAD"){
-		return 0x0F << 2;
+		return MLOAD << 2;
 	}
 	else if(opcode == "MOD"){
-		return 0x10 << 2;
+		return MOD << 2;
 	}
 	else if(opcode == "MOVE"){
-		return 0x11 << 2;
+		return MOVE << 2;
 	}
 	else if(opcode == "MSTORE"){
-		return 0x12 << 2;
+		return MSTORE << 2;
 	}
 	else if(opcode == "MUL"){
-		return 0x13 << 2;
+		return MUL << 2;
 	}
 	else if(opcode == "NOT"){
-		return 0x14 << 2;
+		return NOT << 2;
 	}
 	else if(opcode == "OR"){
-		return 0x15 << 2;
+		return OR << 2;
 	}
 	else if(opcode == "POPFRAME"){
-		return 0x16 << 2;
+		return POPFRAME << 2;
 	}
 	else if(opcode == "PUSHFRAME"){
-		return 0x17 << 2;
+		return PUSHFRAME << 2;
 	}
 	else if(opcode == "POW"){
-		return 0x18 << 2;
+		return POW << 2;
 	}
 	else if(opcode == "PRINT"){
-		return 0x19 << 2;
+		return PRINT << 2;
 	}
 	else if(opcode == "RETURN"){
-		return 0x1A << 2;
+		return RETURN << 2;
 	}
 	else if(opcode == "RSH"){
-		return 0x1B << 2;
-	}
-	else if(opcode == "SETDO"){
-		return 0x1C << 2;
+		return RSH << 2;
 	}
 	else if(opcode == "SUB"){
-		return 0x1D << 2;
+		return SUB << 2;
 	}
 	else if(opcode == "XOR"){
-		return 0x1E << 2;
+		return XOR << 2;
 	}else{
 		return 0xFF;
 	}
@@ -858,7 +842,6 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 		return 0x00;
 		break;
 		
-	case SETDO:
 	case ABS:
 	case NOT:
 	case INPUT:

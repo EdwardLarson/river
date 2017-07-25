@@ -68,9 +68,8 @@ typedef enum _OPCODE{
 /*25*/	PRINT,
 /*26*/	RETURN,
 /*27*/	RSH,
-/*28*/	SETDO,
-/*29*/	SUB,
-/*30*/	XOR
+/*28*/	SUB,
+/*29*/	XOR
 } OPCODE;
 
 /*

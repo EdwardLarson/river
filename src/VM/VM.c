@@ -37,7 +37,6 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 	Byte instruction;
 	OPCODE opcode;
 	Byte funct;
-	Byte returnBit;
 	
 	unsigned long offset;
 	void* finalAddress;
@@ -60,16 +59,14 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 		//  r: return bit; returns to defaultOutput register if 0, to a return argument if 1
 		//	o: bits of opcode; 
 		//  f: bits of funct; select sub-functions of the operation, such as different argument types
-		opcode = (OPCODE) ((instruction & 0x7C) >> 2);
+		opcode = (OPCODE) ((instruction & 0xFC) >> 2);
 		funct = (instruction & 0x03);
-		returnBit = (instruction & 0x80);
 		
 		/// DEBUG
 		if (log){
 			printf("\tpc = %ld\n", pc); ///DEBUG
 			printf("\topcode: %d\n", opcode);
 			printf("\tfunct: %d\n", funct);
-			printf("\treturnBit: %d\n", returnBit);
 		}
 		
 		switch (opcode){
@@ -599,17 +596,6 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 //RSH
 		case RSH:
 			break;
-//SETDO
-		case SETDO:
-			//registerFile.defaultOutput = byteStream[pc + 1];
-			pcNext += 1;
-			
-			
-			printf ("SETDO FOUND");
-			return;
-			
-			pc = pcNext;
-			continue;
 //SUB
 		case SUB:
 			break;
@@ -622,17 +608,10 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 		// after switch: pc should point to either last (return value) argument, or the next instruction
 		// this is inferred from the return bit in the instruction
 		
-		// TO-DO: RETURN BIT
-		
-		if (returnBit){ // to returned register
-			write_register(byteStream[pcNext], &registerFile, r);
-			///*access_register(byteStream[pcNext], &registerFile) = *r;
-			// increment pc past return register
-			pc = pcNext + 1;
-		}else{ // to defaultOutput
-			write_default_output(r, &registerFile);
-			pc = pcNext;
-		}
+		//return result to output register
+		write_register(byteStream[pcNext], &registerFile, r);
+		// increment pc past return register
+		pc = pcNext + 1;
 	}
 }
 
@@ -802,6 +781,7 @@ const Data_Object* read_register(Byte reg, Register_File* rf){
 		
 	default:
 		printf("attempted read from nonexistant register\n");
+		return &rf->globalRegisters[32]; // $zero
 		break;
 		
 	}
