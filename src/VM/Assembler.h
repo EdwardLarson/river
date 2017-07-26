@@ -13,7 +13,7 @@
 #define LONGEST_INSTRUCTION_LENGTH 9
 
 #define ASSEMBLER_VERSION_MAIN	0
-#define ASSEMBLER_VERSION_SUB	4
+#define ASSEMBLER_VERSION_SUB	5
 
 /* ASSEMBLER
 * Assembling object which reads a file containing

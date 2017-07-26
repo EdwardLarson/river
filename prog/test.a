@@ -1,19 +1,16 @@
-MOVE(1) 504 > $0
-MOVE(1) 0 > $1
+MOVE(3) :MULTFUNCT > $0
 PRINT(0) $0
 PRINT(2)
-PRINT(0) $1
+MOVE(1) 5 > $ARG(0)
+MOVE(1) 10 > $ARG(1)
+PRINT(0) $ARG(0)
 PRINT(2)
-MOVE(0) $0 > $ARG(0)
-MOVE(0) $1 > $ARG(1)
-PUSHFRAME(0)
-JUMP(1) :MULTFUNCT
+PRINT(0) $ARG(1)
+PRINT(2)
+CALL(0) $0
 POPFRAME(0)
 PRINT(0) $RETURN(0)
-HALT
-:FUNCT; function which adds two numbers
-ADD(0) $ARG(0) $ARG(1) > $RETURN(0); return (arg0 + arg1)
-RETURN(0)
+HALT(0)
 :MULTFUNCT; function which multiplies two numbers
 MOVE(0) $SFR(0) > $0; i = 0
 MOVE(0) $0 > $1; result = 0
@@ -24,4 +21,4 @@ ADD(0) $0 $3 > $0; i += step
 LT(0) $0 $ARG(0) > $2; lt = i < arg0
 BRANCH(0) $2 :LOOP ; if (i < arg0) repeat loop
 MOVE(0) $1 > $RETURN(0)
-RETURN
+RETURN(0)

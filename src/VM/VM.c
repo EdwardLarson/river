@@ -34,6 +34,9 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 	
 	Byte running = 1;
 	
+	int instructionNo = 1;
+	Byte limitInstructions = 1;
+	
 	Byte instruction;
 	OPCODE opcode;
 	Byte funct;
@@ -50,7 +53,9 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 	Register_File registerFile;
 	initialize_register_file(&registerFile);
 	
-	while(running && (pc < *length)){
+	while(running && (pc < *length) && (!limitInstructions || instructionNo < INSTRUCTION_LIMIT)){
+		
+		++instructionNo;
 		
 		pcNext = pc + 1; // automatically incremented 1 byte for instruction, so operations should only increment it for argument bytes
 		
@@ -158,7 +163,19 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 			continue;
 //CALL
 		case CALL:
-			break;
+			
+			a = read_register(byteStream[pc + 1], &registerFile);
+			
+			++(registerFile.depth);
+			
+			pcNext += 1;
+			if (log)
+				printf("pushed pcNext %ld, reading in a new pc: %ld\n", pcNext, a->data.f);
+			push_pc(&pcNext, &registerFile);
+			
+			pcNext = a->data.f;
+			pc = pcNext;
+			continue;
 //DIV
 		case DIV:
 			break;
@@ -390,6 +407,8 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 					///finalAddress = ((void**) a->data.p) + offset;
 					tmpReturn.data.p = *( (void**) finalAddress );
 					break;
+				case FUNCTION:
+					tmpReturn.data.f = *( (PCType*) finalAddress );
 				}
 				
 				r = &tmpReturn;
@@ -430,6 +449,14 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				
 				pcNext += 2;
 				break;
+			case 3: //load an address literal into a register as a function
+				tmpReturn.type = FUNCTION;
+				tmpReturn.data.f = read_address_literal(&byteStream[pc + 1]);
+				
+				r = &tmpReturn;
+				
+				pcNext += sizeof(PCType);
+				
 			}
 			break;
 //MUL
@@ -513,6 +540,8 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				case POINTER:
 					*((void**) finalAddress) = b->data.p;
 					break;
+				case FUNCTION:
+					*((PCType*) finalAddress) = b->data.f;
 				}
 				
 				break;
@@ -585,6 +614,10 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				break;
 			case POINTER:
 				printf("POINTER: %p", a->data.p);
+				break;
+			case FUNCTION:
+				printf("FUNCTION: %ld", a->data.f);
+				break;
 			}
 			
 			pc = pcNext;
@@ -612,6 +645,10 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 		write_register(byteStream[pcNext], &registerFile, r);
 		// increment pc past return register
 		pc = pcNext + 1;
+	}
+	
+	if (instructionNo >= INSTRUCTION_LIMIT){
+		printf("Stopped at instruction limit\n");
 	}
 }
 

@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #define WWHEEL_VERSION_MAIN	0
-#define WWHEEL_VERSION_SUB	4
+#define WWHEEL_VERSION_SUB	5
 
 #define REGISTER_NODE_SIZE 512
 #define DATA_OBJECT_SIZE 16
@@ -15,6 +15,8 @@
 #define FRAME_STACK_SIZE 64
 #define NUM_REGISTERS 256
 #define NUM_PERSISTENT_REGISTERS 32
+
+#define INSTRUCTION_LIMIT 1000
 
 #define META_BEGIN		0xf0
 #define META_END		0xf1
@@ -86,8 +88,8 @@ typedef enum { // 4 bytes maybe, according to C++ standard but not C
 	NIL,
 	BOOL,
 	STRING,
-	POINTER
-	//,FUNCTION
+	POINTER,
+	FUNCTION
 } Data_Type;
 
 /*
@@ -105,7 +107,7 @@ typedef union {
 	char* s; // string length stored separately by string object
 	Byte b; // represents boolean value
 	void* p; // garbage collected value
-	// how to represent function type?
+	PCType f; // function as defined by a location in program
 } Data;
 
 /* Data_Object 
