@@ -21,6 +21,11 @@ bool Assembler::assemble(){
 	write_byte(META_VERSION);
 	write_byte(ASSEMBLER_VERSION_MAIN);
 	write_byte(ASSEMBLER_VERSION_SUB);
+	write_byte(META_STRING);
+	write_byte(0x00);
+	write_byte(0x01);
+	write_byte('A');
+	write_byte('\0');
 	write_byte(META_END);
 	
 	
@@ -441,6 +446,9 @@ bool Assembler::assemble_line(const std::string& line){
 			// scan to next double quotes
 			while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != '"') tokenLength++;
 			
+			// pull out the string literal
+			///std::string stringLiteral = line.substr(tokenBegin + 1, tokenLength - 1);
+			
 			break;
 		default: // assume it is a literal
 			while (tokenBegin + tokenLength < lineEnd && line[tokenBegin + tokenLength] != ' ') tokenLength++;
@@ -488,6 +496,7 @@ bool Assembler::assemble_line(const std::string& line){
 	
 	if (tokenBegin < lineEnd && log) std::cout << "Return register read: " << line.substr(tokenBegin + 1, tokenLength - 1) << std::endl;
 	
+	// write the return register
 	if (tokenBegin < lineEnd){
 		write_byte(convert_register(line.substr(tokenBegin + 1, tokenLength - 1)));
 	}
@@ -816,6 +825,12 @@ Byte Assembler::get_opcode_hex(const std::string& opcode) const{
 	else if(opcode == "RSH"){
 		return RSH << 2;
 	}
+	else if(opcode == "THFORK"){
+		return THFORK << 2;
+	}
+	else if(opcode == "THJOIN"){
+		return THJOIN << 2;
+	}
 	else if(opcode == "SUB"){
 		return SUB << 2;
 	}
@@ -1010,6 +1025,8 @@ Byte Assembler::get_funct(Byte opcodeShifted, std::vector<Argument> args, char s
 	default:
 		return 0x00;
 	}
+	
+	return 0x00;
 }
 
 unsigned int Assembler::char_to_int(char c){

@@ -10,6 +10,7 @@
 	ptr + offset
 #endif
 
+
 void execute(const Byte* byteStream, const PCType* length, Byte log){
 	if (log){
 		printf("Executing %ld bytes...\n", *length);
@@ -409,6 +410,10 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 					break;
 				case FUNCTION:
 					tmpReturn.data.f = *( (PCType*) finalAddress );
+					break;
+				case THREAD:
+					tmpReturn.data.t = *( (ThreadType*) finalAddress );
+					break;
 				}
 				
 				r = &tmpReturn;
@@ -434,20 +439,21 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				pcNext += DATA_OBJECT_SIZE;
 				break;
 			case 2: // load a string literal to a register
-				// read next two bytes as high and low of the constant's id
 				{
-				unsigned int stringID = byteStream[pc + 1];
-				stringID = stringID << 8;
-				stringID += byteStream[pc + 2];
+					
+				unsigned int stringID = read_bytes(&byteStream[pc + 1]).data.n;
+				
+				if (log) printf("\tstringID read\n");
 				
 				tmpReturn.type = STRING;
-				tmpReturn.data.s = metaData.stringHeads[stringID];
-				tmpReturn.aux[0] = metaData.stringLens[stringID] >> 8;
-				tmpReturn.aux[1] = metaData.stringLens[stringID] & 0xFF;
+				tmpReturn.data.s = metaData.stringLiterals[stringID];
 				}
 				r = &tmpReturn;
 				
-				pcNext += 2;
+				pcNext += DATA_OBJECT_SIZE;
+				
+				if (log) printf("PCNext = %ld\n", pcNext);
+				
 				break;
 			case 3: //load an address literal into a register as a function
 				tmpReturn.type = FUNCTION;
@@ -542,6 +548,10 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 					break;
 				case FUNCTION:
 					*((PCType*) finalAddress) = b->data.f;
+					break;
+				case THREAD:
+					*((ThreadType*) finalAddress) = b->data.t;
+					break;
 				}
 				
 				break;
@@ -611,12 +621,16 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 				break;
 			case STRING:
 				printf("STRING: %s", a->data.s);
+				
 				break;
 			case POINTER:
 				printf("POINTER: %p", a->data.p);
 				break;
 			case FUNCTION:
 				printf("FUNCTION: %ld", a->data.f);
+				break;
+			case THREAD:
+				printf("THREAD: %lx", (long int) a->data.t);
 				break;
 			}
 			
@@ -625,7 +639,23 @@ void execute(const Byte* byteStream, const PCType* length, Byte log){
 //RETURN
 		case RETURN:
 			pc = pop_pc(&registerFile);
+			if (pc == 0){
+				if (log) printf("Returned from top of stack; halting");
+				running = 0;
+			}
 			continue;
+//THFORK
+		case THFORK:
+			// create new register file
+			// copy args from current register file (args from the layer below, which is written to from this layer) to new one
+			// add current thread's ID to SFR section of new register file
+			// create new thread which executes this bytecode beginning at the chosen point using the new register file
+			// save the new thread's identifier to tmpReturn
+			// 
+			break;
+//THJOIN
+		case THJOIN:
+			break;
 //RSH
 		case RSH:
 			break;
@@ -763,6 +793,10 @@ char* get_object_cstring(Data_Object* stringObject){
 	return (stringObject->data.s) + STRING_LENGTH_BYTES;
 }
 
+void print_river_string(char* string){
+	printf("%s", string + 2);
+}
+
 //==========================================================
 // REGISTER FILE FUNCTIONS
 //==========================================================
@@ -773,29 +807,8 @@ void initialize_register_file(Register_File* rFile){
 	
 	rFile->globalRegisters[0] = zeroObject;
 	rFile->pcTop = 0;
+	rFile->depth = 0;
 }
-/*
-Data_Object* access_register(Byte reg, Register_File* rf){
-	switch(reg & 0xE0){ // get first 3 bits
-	case 0x80: // args pass
-		return &rf->localRegisters[reg & 0x1F][rf->depth + 1];
-		break;
-	case 0xA0: // returns pass
-		return &rf->localRegisters[reg & 0x1F][rf->depth - 1];
-		break;
-		
-	case 0xC0: // globals
-	case 0xE0: // special purpose
-		return &rf->globalRegisters[reg & 0x3F];
-		break;
-		
-	default: // local registers
-		return &rf->localRegisters[reg][rf->depth];
-		break;
-		
-	}
-}
-*/
 
 const Data_Object* read_register(Byte reg, Register_File* rf){
 	switch(reg & 0xE0){ // get first 3 bits
@@ -825,6 +838,7 @@ const Data_Object* read_register(Byte reg, Register_File* rf){
 }
 
 void write_register(Byte reg, Register_File* rf, const Data_Object* data){
+	
 	switch(reg & 0xE0){ // get first 3 bits
 	case 0x40: // args pass
 		rf->localRegisters[reg & 0x7F][rf->depth + 1] = *data;
@@ -856,7 +870,6 @@ void write_default_output(const Data_Object* object, Register_File* rf){
 
 void push_pc(PCType* pc_entry, Register_File* rf){
 	if (rf->pcTop < PC_STACK_SIZE - 1){
-		///printf("enough space\n"); ///DEBUG
 		++(rf->pcTop);
 		rf->pcStack[rf->pcTop] = *pc_entry;
 	}else{
@@ -869,8 +882,8 @@ PCType pop_pc(Register_File* rf){
 		--(rf->pcTop);
 		return rf->pcStack[rf->pcTop + 1];
 	}else{
-		printf("ERROR: pc stack underflow!\n");
-		return -1;
+		///printf("ERROR: pc stack underflow!\n");
+		return 0;
 	}
 }
 
@@ -884,6 +897,8 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 	unsigned int stringLength;
 	char* stringHead;
 	unsigned int nstrings;
+	
+	metaData->nextOpen = 0;
 	
 	while (pc < *length && byteStream[pc] != META_END){
 		printf("meta byte <%x>\n", byteStream[pc]); /// DEBUG
@@ -902,7 +917,6 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 			pc += 3;
 			break;
 		case META_STRING:
-			/// printf("\tMETA_STRING (%x) at %ld\n", byteStream[pc], pc); /// DEBUG
 			// read string length from next 2 bytes
 			stringLength = byteStream[pc + 1];
 			stringLength = stringLength << 8;
@@ -910,37 +924,18 @@ PCType read_metadata(const Byte* byteStream, const PCType* length, Meta_Data* me
 			// allocate memory for string
 			stringHead = (char*) malloc(sizeof(char) * (stringLength));
 			// read string characters
-			for (unsigned int i = 0; i < stringLength; i++){
+			for (unsigned int i = 0; i <= stringLength; i++){
 				stringHead[i] = (char) byteStream[pc + 3 + i];
 			}
 			
 			// store string
-			if (metaData->lastStored == metaData->nstrings){
-				// more strings than expected, do nothing with this string
-				printf("Error: more strings than expected in metadata\n");
-				free(stringHead);
-			}else{
-				metaData->lastStored++;
-				metaData->stringHeads[metaData->lastStored] = stringHead;
-				metaData->stringLens[metaData->lastStored] = stringLength;
-			}
+			metaData->stringLiterals[metaData->nextOpen] = stringHead;
+			metaData->nextOpen++;
+			
+			printf("\tSTRING LITERAL READ: %s\n", stringHead); /// DEBUG
 			
 			// move pc to next metadata
 			pc += 3 + stringLength;
-			break;
-		case META_NSTRING:
-			// read the number of string constants
-			nstrings = byteStream[pc + 1];
-			nstrings = nstrings << 8;
-			nstrings += byteStream[pc + 2];
-			
-			// allocate memory for strings
-			metaData->nstrings = nstrings;
-			metaData->stringHeads = (char**) malloc(sizeof(char*) * nstrings);
-			metaData->stringLens = (unsigned int*) malloc(sizeof(unsigned int) * nstrings);
-			
-			// move pc to next metadata
-			pc += 3;
 			break;
 		case META_END:
 			return pc + 1;

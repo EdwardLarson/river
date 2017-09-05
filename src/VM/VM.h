@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #define WWHEEL_VERSION_MAIN	0
 #define WWHEEL_VERSION_SUB	5
@@ -15,6 +16,7 @@
 #define FRAME_STACK_SIZE 64
 #define NUM_REGISTERS 256
 #define NUM_PERSISTENT_REGISTERS 32
+#define STRING_LITERAL_LIMIT 256
 
 #define INSTRUCTION_LIMIT 1000
 
@@ -22,7 +24,6 @@
 #define META_END		0xf1
 #define META_VERSION	0xf2
 #define META_STRING		0xf3
-#define META_NSTRING	0xf4
 #define META_CHECKSUM	0xf5
 
 #define P_ARRAY			0x00
@@ -34,6 +35,7 @@
 typedef unsigned char Byte;
 typedef signed long IntegerType;
 typedef double RationalType;
+typedef pthread_t ThreadType;
 
 typedef unsigned long PCType;
 
@@ -70,8 +72,10 @@ typedef enum _OPCODE{
 /*25*/	PRINT,
 /*26*/	RETURN,
 /*27*/	RSH,
-/*28*/	SUB,
-/*29*/	XOR
+/*28*/	THFORK,
+/*29*/	THJOIN,
+/*29*/	SUB,
+/*30*/	XOR
 } OPCODE;
 
 /*
@@ -89,7 +93,8 @@ typedef enum { // 4 bytes maybe, according to C++ standard but not C
 	BOOL,
 	STRING,
 	POINTER,
-	FUNCTION
+	FUNCTION,
+	THREAD
 } Data_Type;
 
 /*
@@ -108,6 +113,7 @@ typedef union {
 	Byte b; // represents boolean value
 	void* p; // garbage collected value
 	PCType f; // function as defined by a location in program
+	ThreadType t; // thread identifier object
 } Data;
 
 /* Data_Object 
@@ -138,22 +144,22 @@ typedef struct {
 	unsigned int pcTop;
 } Register_File;
 */
+
 typedef struct Register_File_{
 	Data_Object localRegisters[128][FRAME_STACK_SIZE];
-	unsigned int depth;
 	
 	Data_Object globalRegisters[64];
 	
 	PCType pcStack[PC_STACK_SIZE];
+	unsigned int depth;
 	unsigned int pcTop;
 	
 } Register_File;
 
 typedef struct {
-	char** stringHeads;
-	unsigned int* stringLens;
-	unsigned int nstrings;
-	unsigned int lastStored;
+	char* stringLiterals[STRING_LITERAL_LIMIT]; // contains string literals from the compiled program
+	
+	unsigned int nextOpen;
 	
 	Byte versionMain;
 	Byte versionSub;
@@ -180,6 +186,7 @@ Data_Object create_object_RATIONAL(RationalType d);
 Data_Object create_object_BOOL(Byte b);
 inline void clear_data(Data_Object* object);
 char* get_object_cstring(Data_Object* stringObject);
+void print_river_string(char* string);
 
 // Register file functions
 void initialize_register_file(Register_File* rFile);
